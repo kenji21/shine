@@ -21,7 +21,11 @@
 #define KEYSTORE_H
 
 #include <QSettings>
+#if QT_VERSION < 0x050000
+#include <QDesktopServices>
+#else
 #include <QStandardPaths>
+#endif
 #include <QDebug>
 
 class KeyStore: public QObject

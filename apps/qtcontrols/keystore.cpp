@@ -1,7 +1,12 @@
 #include "keystore.h"
 
+
 KeyStore::KeyStore(QObject *parent): QObject(parent),
-    m_settings(QStandardPaths::standardLocations(QStandardPaths::ConfigLocation).first() + "/shine/shine.conf", QSettings::IniFormat)
+#if QT_VERSION < 0x050000
+        m_settings(QDesktopServices::storageLocation(QDesktopServices::DataLocation) + "/shine/shine.conf", QSettings::IniFormat)
+#else      
+        m_settings(QStandardPaths::standardLocations(QStandardPaths::ConfigLocation).first() + "/shine/shine.conf", QSettings::IniFormat)
+#endif
 {
 }
 

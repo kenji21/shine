@@ -56,6 +56,9 @@ void HueBridgeConnection::setApiKey(const QString &apiKey)
         m_apiKey = apiKey;
         emit apiKeyChanged();
     }
+    if (!m_bridge.isNull()) {
+        m_baseApiUrl = "http://" + m_bridge.toString() + "/api/" + m_apiKey + "/";
+    }
 }
 
 bool HueBridgeConnection::discoveryError() const
@@ -71,6 +74,11 @@ bool HueBridgeConnection::bridgeFound() const
 QString HueBridgeConnection::connectedBridge() const
 {
     return m_apiKey.isEmpty() ? "" : m_bridge.toString();
+}
+
+QString HueBridgeConnection::connectedBridgeString() const
+{
+    return m_bridge.toString();
 }
 
 HueBridgeConnection::HueBridgeConnection():
@@ -111,6 +119,7 @@ void HueBridgeConnection::onNoBridgesFound()
 {
     //FIXME: handle error case
     qDebug() << Q_FUNC_INFO << "No hue bridges found!";
+    emit noBridgesFound();
 }
 
 void HueBridgeConnection::createUser(const QString &devicetype, const QString &username)
@@ -127,9 +136,10 @@ void HueBridgeConnection::createUser(const QString &devicetype, const QString &u
     QByteArray data = serializer.serialize(params);
 #endif
 
-    qDebug() << "sending createUser to" << m_bridge.toString();
+    qDebug() << "sending createUser to" << m_bridge.toString() << " data = " << data;
     QNetworkRequest request;
     request.setUrl(QUrl("http://" + m_bridge.toString() + "/api"));
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
     QNetworkReply *reply = m_nam->post(request, data);
     connect(reply, SIGNAL(finished()), this, SLOT(createUserFinished()));
 }

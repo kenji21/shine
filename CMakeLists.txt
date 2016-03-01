@@ -6,9 +6,21 @@ set(CMAKE_AUTOMOC ON)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-permissive -pedantic -Wall -Wextra -fPIC")
 
-include(FindPkgConfig)
+if(UNIX)
+  include(FindPkgConfig)
+else() # win32
+endif()
 
-if(HARMATTAN_BUILD)
+if(DESKTOP_BUILD)
+    set(QT4_BUILD 1)
+    if(UNIX)
+      include_directories(qjson-install/include)
+      link_directories(qjson-install/lib)
+    else()
+      include_directories(qjson-install-win/include)
+      link_directories(qjson-install-win/lib)
+    endif()
+elseif(HARMATTAN_BUILD)
     set(QT4_BUILD 1)
 endif()
 
@@ -21,6 +33,7 @@ else()
 
     set(QT_USE_QTDECLARATIVE ON)
     set(QT_USE_QTNETWORK ON)
+    set(QT_USE_QTCORE ON)
 
     include( ${QT_USE_FILE} )
 endif()

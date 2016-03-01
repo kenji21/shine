@@ -19,9 +19,10 @@
  *      Christian Muehlhaeuser <muesli@gmail.com>
  */
 
-import QtQuick 2.1
+//import QtQuick 2.1
+import QtQuick 1.1
 import Hue 0.1
-import QtQuick.Controls 1.0
+//import QtQuick.Controls 1.0
 
 ApplicationWindow {
     width: tabView.implicitWidth * 3
@@ -101,8 +102,8 @@ ApplicationWindow {
                         color: "white"
                     }
 
-                    property var light
-                    property alias text: label.text
+                    //property var light
+                    //property alias text: label.text
                 }
             }
         }

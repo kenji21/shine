@@ -21,14 +21,19 @@
 
 #include "keystore.h"
 
-#include <QtWidgets/QApplication>
+#include <QApplication>
+#if QT_VERSION < 0x050000
+#include <QDeclarativeView>
+#include "QmlApplicationViewer.h"
+#else
 #include <QQuickView>
 #include <QQmlEngine>
 #include <QQmlContext>
+#include <QQmlComponent>
+#endif
 
 #include <QDir>
 #include <QDebug>
-#include <QQmlComponent>
 #include <QImageReader>
 
 #include "huebridgeconnection.h"
@@ -38,7 +43,14 @@ int main(int argc, char *argv[])
     QApplication app(argc, argv);
 
     HueBridgeConnection::instance();
-
+#if QT_VERSION < 0x050000
+    QmlApplicationViewer viewer;
+    viewer.addImportPath(QString::fromLatin1("%1/%2").arg(QCoreApplication::applicationDirPath(), "/../../plugin/"));
+    viewer.setOrientation(QmlApplicationViewer::ScreenOrientationLockLandscape);
+    viewer.setMainQmlFile(QLatin1String("qml/Shine.qml"));
+    
+    viewer.showExpanded();
+#else
     QQmlEngine engine;
     QObject::connect(&engine, SIGNAL(quit()), QCoreApplication::instance(), SLOT(quit()));
     engine.addImportPath(QDir::currentPath() + "/../../plugin/");
@@ -60,9 +72,9 @@ int main(int argc, char *argv[])
         qDebug() << "ApplicationWindow not found. Shine.qml must be an ApplicationWindow.";
         return -1;
     }
-
     qDebug() << "setting app icon" << QImageReader::supportedImageFormats();
     window->setIcon(QIcon("shine.svg"));
     window->show();
+#endif
     return app.exec();
 }

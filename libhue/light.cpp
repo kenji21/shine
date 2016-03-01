@@ -23,6 +23,7 @@
 #include <QColor>
 #include <QDebug>
 #include <QGenericMatrix>
+#include <math.h>
 
 Light::Light(int id, const QString &name, QObject *parent):
     LightInterface(parent),
@@ -161,6 +162,74 @@ void Light::setSat(quint8 sat)
 QColor Light::color() const
 {
     return QColor::fromHsv(m_hue * 360 / 65535, m_sat, 255);
+}
+
+void Light::setColorWithXY(const QColor &color)
+{
+    // For the hue bulb the corners of the triangle are:
+    // -Red: 0.675, 0.322
+    // -Green: 0.4091, 0.518
+    // -Blue: 0.167, 0.04
+    double normalizedToOne[3];
+    float cred, cgreen, cblue;
+    cred = color.redF();
+    cgreen = color.greenF();
+    cblue = color.blueF();
+    normalizedToOne[0] = (cred / 255);
+    normalizedToOne[1] = (cgreen / 255);
+    normalizedToOne[2] = (cblue / 255);
+    float red, green, blue;
+
+    // Make red more vivid
+    if (normalizedToOne[0] > 0.04045) {
+        red = (float) pow(
+                (normalizedToOne[0] + 0.055) / (1.0 + 0.055), 2.4);
+    } else {
+        red = (float) (normalizedToOne[0] / 12.92);
+    }
+
+    // Make green more vivid
+    if (normalizedToOne[1] > 0.04045) {
+        green = (float) pow((normalizedToOne[1] + 0.055)
+                / (1.0 + 0.055), 2.4);
+    } else {
+        green = (float) (normalizedToOne[1] / 12.92);
+    }
+
+    // Make blue more vivid
+    if (normalizedToOne[2] > 0.04045) {
+        blue = (float) pow((normalizedToOne[2] + 0.055)
+                / (1.0 + 0.055), 2.4);
+    } else {
+        blue = (float) (normalizedToOne[2] / 12.92);
+    }
+
+    float X = (float) (red * 0.649926 + green * 0.103455 + blue * 0.197109);
+    float Y = (float) (red * 0.234327 + green * 0.743075 + blue * 0.022598);
+    float Z = (float) (red * 0.0000000 + green * 0.053077 + blue * 1.035763);
+
+    float x = X / (X + Y + Z);
+    float y = Y / (X + Y + Z);
+    
+    int bri = color.value();
+    
+    qDebug() << "setting color" << color;
+    if (m_busyStateChangeId == -1) {
+        QVariantMap params;
+        
+        QVariantList xyList;
+        xyList << x << y;
+        params.insert("xy", xyList);
+        params.insert("bri", bri);
+    
+        params.insert("on", true);
+        m_busyStateChangeId = HueBridgeConnection::instance()->put("lights/" + QString::number(m_id) + "/state", params, this, "setStateFinished");
+    } else {
+        m_briDirty = true;
+        m_dirtyBri = bri;
+        m_xyDirty = true;
+        m_dirtyXy = QPointF(x, y);
+    }
 }
 
 void Light::setColor(const QColor &color)
@@ -384,7 +453,7 @@ void Light::setStateFinished(int id, const QVariant &response)
 
     if (m_busyStateChangeId == id) {
         m_busyStateChangeId = -1;
-        if (m_hueDirty || m_satDirty || m_briDirty) {
+        if (m_hueDirty || m_satDirty) {
             QVariantMap params;
             if (m_hueDirty) {
                 params.insert("hue", m_dirtyHue);
@@ -410,12 +479,14 @@ void Light::setStateFinished(int id, const QVariant &response)
             m_ctDirty = false;
 
             m_busyStateChangeId = HueBridgeConnection::instance()->put("lights/" + QString::number(m_id) + "/state", params, this, "setStateFinished");
-        } else if (m_xyDirty) {
+        } else if (m_xyDirty || m_briDirty) {
             QVariantMap params;
             QVariantList xyList;
             xyList << m_dirtyXy.x() << m_dirtyXy.y();
             params.insert("xy", xyList);
             m_xyDirty = false;
+            params.insert("bri", m_dirtyBri);
+            m_briDirty = false;
 
             m_busyStateChangeId = HueBridgeConnection::instance()->put("lights/" + QString::number(m_id) + "/state", params, this, "setStateFinished");
         }

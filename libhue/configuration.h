@@ -17,7 +17,7 @@
  *      Michael Zanetti <michael_zanetti@gmx.net>
  */
 
-#ifndef CONFIGRATION_H
+#ifndef CONFIGURATION_H
 #define CONFIGURATION_H
 
 #include <QObject>

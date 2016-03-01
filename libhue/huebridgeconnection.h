@@ -64,6 +64,7 @@ public:
     bool discoveryError() const;
     bool bridgeFound() const;
     QString connectedBridge() const;
+    QString connectedBridgeString() const;
 
     Q_INVOKABLE void createUser(const QString &devicetype, const QString &username);
 
@@ -76,6 +77,7 @@ signals:
     void apiKeyChanged();
     void discoveryErrorChanged();
     void bridgeFoundChanged();
+    void noBridgesFound();
     void connectedBridgeChanged();
     void stateChanged();
 

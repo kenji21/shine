@@ -72,6 +72,7 @@ public slots:
     void setHue(quint16 hue);
     void setSat(quint8 sat);
     void setColor(const QColor &color);
+    void setColorWithXY(const QColor &color);
     void setXy(const QPointF &xy);
     void setCt(quint16 ct);
     void setAlert(const QString &alert);

@@ -1,0 +1,3 @@
+[submodule "qjson"]
+	path = qjson
+	url = https://github.com/flavio/qjson.git
