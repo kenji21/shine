@@ -67,8 +67,11 @@ void Discovery::findBridges()
 
 void Discovery::onTimeout()
 {
-    if (m_reportedBridges.isEmpty())
+    if (m_reportedBridges.isEmpty()) {
         emit noBridgesFound();
+        // Try again...
+        findBridges();
+    }
 }
 
 void Discovery::onReadyRead()
@@ -83,6 +86,7 @@ void Discovery::onReadyRead()
 
 //        qDebug() << "got datagram" << datagram;
         if (!m_reportedBridges.contains(sender)) {
+            sender.setAddress(sender.toIPv4Address());
             m_reportedBridges << sender;
             emit foundBridge(sender);
         }

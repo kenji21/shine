@@ -12,7 +12,7 @@ else() # win32
 endif()
 
 if(DESKTOP_BUILD)
-    set(QT4_BUILD 1)
+    #set(QT4_BUILD 1)
     if(UNIX)
       include_directories(qjson-install/include)
       link_directories(qjson-install/lib)
@@ -25,9 +25,21 @@ elseif(HARMATTAN_BUILD)
 endif()
 
 if(NOT QT4_BUILD)
+    find_package(Qt5Widgets)
     find_package(Qt5Core)
+    find_package(Qt5Network)
     find_package(Qt5Qml)
     find_package(Qt5Quick)
+    find_package(Qt5Declarative)
+
+    include_directories(${Qt5Widgets_INCLUDE_DIRS})
+    include_directories(${Qt5Network_INCLUDE_DIRS})
+    include_directories(${Qt5Quick_INCLUDE_DIRS})
+    include_directories(${Qt5Qml_INCLUDE_DIRS})
+    include_directories(${Qt5Core_INCLUDE_DIRS})
+    include_directories(${Qt5Declarative_INCLUDE_DIRS})
+
+    #include( ${QT_USE_FILE} )
 else()
     find_package(Qt4 REQUIRED)
 
@@ -39,7 +51,5 @@ else()
 endif()
 
 add_subdirectory(libhue)
-add_subdirectory(plugin)
-add_subdirectory(apps)
-
-
+#add_subdirectory(plugin)
+#add_subdirectory(apps)

@@ -48,14 +48,23 @@ private:
 class HueBridgeConnection: public QObject
 {
     Q_OBJECT
+    Q_ENUMS(BridgeStatus)
 
     Q_PROPERTY(QString apiKey READ apiKey WRITE setApiKey NOTIFY apiKeyChanged)
     Q_PROPERTY(bool discoveryError READ discoveryError NOTIFY discoveryErrorChanged)
     // TODO: Convert this to a model holding all the discovered bridges
     Q_PROPERTY(bool bridgeFound READ bridgeFound NOTIFY bridgeFoundChanged)
     Q_PROPERTY(QString connectedBridge READ connectedBridge NOTIFY connectedBridgeChanged)
+    Q_PROPERTY(BridgeStatus status READ status NOTIFY statusChanged)
 
 public:
+    enum BridgeStatus {
+        BridgeStatusSearching,
+        BridgeStatusConnecting,
+        BridgeStatusAuthenticationFailure,
+        BridgeStatusConnected
+    };
+
     static HueBridgeConnection* instance();
 
     QString apiKey() const;
@@ -65,6 +74,8 @@ public:
     bool bridgeFound() const;
     QString connectedBridge() const;
     QString connectedBridgeString() const;
+
+    BridgeStatus status() const;
 
     Q_INVOKABLE void createUser(const QString &devicetype, const QString &username);
 
@@ -80,6 +91,7 @@ signals:
     void noBridgesFound();
     void connectedBridgeChanged();
     void stateChanged();
+    void statusChanged();
 
     void createUserFailed(const QString &errorMessage);
 
@@ -101,6 +113,7 @@ private:
     bool m_discoveryError;
     QString m_apiKey;
     QString m_baseApiUrl;
+    BridgeStatus m_bridgeStatus;
 
     int m_requestCounter;
     QHash<QNetworkReply*, int> m_requestIdMap;

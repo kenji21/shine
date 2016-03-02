@@ -81,9 +81,15 @@ QString HueBridgeConnection::connectedBridgeString() const
     return m_bridge.toString();
 }
 
+HueBridgeConnection::BridgeStatus HueBridgeConnection::status() const
+{
+    return m_bridgeStatus;
+}
+
 HueBridgeConnection::HueBridgeConnection():
     m_nam(new QNetworkAccessManager(this)),
     m_discoveryError(false),
+    m_bridgeStatus(BridgeStatusSearching),
     m_requestCounter(0)
 {
     Discovery *discovery = new Discovery(this);
@@ -112,6 +118,8 @@ void HueBridgeConnection::onFoundBridge(QHostAddress bridge)
     }
 
     // Emitting this after we know if we can connect or not to avoid the ui triggering connect dialogs
+    m_bridgeStatus = BridgeStatusConnecting;
+    emit statusChanged();
     emit bridgeFoundChanged();
 }
 
@@ -136,9 +144,13 @@ void HueBridgeConnection::createUser(const QString &devicetype, const QString &u
     QByteArray data = serializer.serialize(params);
 #endif
 
-    qDebug() << "sending createUser to" << m_bridge.toString() << " data = " << data;
     QNetworkRequest request;
-    request.setUrl(QUrl("http://" + m_bridge.toString() + "/api"));
+    QString urlString = QString("http://" + m_bridge.toString() + "/api");
+    QUrl url = QUrl(urlString);
+
+    request.setUrl(url);
+    qDebug() << "sending createUser to" << m_bridge.toString() << " data = " << data << " on urlStr = " << urlString << " url = " << url.toString();
+
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
     QNetworkReply *reply = m_nam->post(request, data);
     connect(reply, SIGNAL(finished()), this, SLOT(createUserFinished()));
@@ -188,6 +200,7 @@ int HueBridgeConnection::post(const QString &path, const QVariantMap &params, QO
 
     QUrl url(m_baseApiUrl + path);
     QNetworkRequest request;
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
     request.setUrl(url);
 
 #if QT_VERSION >= 0x050000
@@ -198,6 +211,7 @@ int HueBridgeConnection::post(const QString &path, const QVariantMap &params, QO
     QByteArray data = serializer.serialize(params);
 #endif
 
+    qDebug() << "posting" << jsonDoc.toJson()<< "\nto" << request.url() << "\n" << data;
     QNetworkReply *reply = m_nam->post(request, data);
     connect(reply, SIGNAL(finished()), this, SLOT(slotOpFinished()));
     m_requestIdMap.insert(reply, m_requestCounter);
@@ -239,6 +253,8 @@ int HueBridgeConnection::put(const QString &path, const QVariantMap &params, QOb
 void HueBridgeConnection::createUserFinished()
 {
     QNetworkReply *reply = static_cast<QNetworkReply*>(sender());
+    reply->deleteLater();
+
     QByteArray response = reply->readAll();
     qDebug() << "create user finished" << response;
 
@@ -278,6 +294,8 @@ void HueBridgeConnection::createUserFinished()
     emit apiKeyChanged();
 
     m_baseApiUrl = "http://" + m_bridge.toString() + "/api/" + m_apiKey + "/";
+    m_bridgeStatus = BridgeStatusConnected;
+    emit statusChanged();
     emit connectedBridgeChanged();
 }
 
@@ -290,14 +308,19 @@ void HueBridgeConnection::slotOpFinished()
     int id = m_requestIdMap.take(reply);
     CallbackObject co = m_requestSenderMap.take(id);
 
+    qDebug() << "reply for" << co.sender() << co.slot();
+//    qDebug() << "response" << response;
+
+    QVariant rsp;
 #if QT_VERSION >= 0x050000
     QJsonParseError error;
     QJsonDocument jsonDoc = QJsonDocument::fromJson(response, &error);
     if (error.error != QJsonParseError::NoError) {
         qWarning() << "error parsing get response:" << error.errorString();
         return;
+    } else {
+        rsp = jsonDoc.toVariant();
     }
-    QVariant rsp = jsonDoc.toVariant();
 #else
     QJson::Parser parser;
     bool ok;
@@ -317,4 +340,3 @@ void HueBridgeConnection::slotOpFinished()
         QMetaObject::invokeMethod(co.sender(), co.slot().toLatin1().data(), Q_ARG(int, id), Q_ARG(QVariant, rsp));
     }
 }
-

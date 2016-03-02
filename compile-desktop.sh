@@ -20,4 +20,3 @@ cd build-desktop
 
 cmake .. -DDESKTOP_BUILD=1
 make
-
