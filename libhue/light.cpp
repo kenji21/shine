@@ -210,18 +210,18 @@ void Light::setColorWithXY(const QColor &color)
 
     float x = X / (X + Y + Z);
     float y = Y / (X + Y + Z);
-    
+
     int bri = color.value();
-    
+
     qDebug() << "setting color" << color;
     if (m_busyStateChangeId == -1) {
         QVariantMap params;
-        
+
         QVariantList xyList;
         xyList << x << y;
         params.insert("xy", xyList);
         params.insert("bri", bri);
-    
+
         params.insert("on", true);
         m_busyStateChangeId = HueBridgeConnection::instance()->put("lights/" + QString::number(m_id) + "/state", params, this, "setStateFinished");
     } else {

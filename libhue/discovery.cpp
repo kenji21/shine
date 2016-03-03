@@ -29,16 +29,21 @@ Discovery::Discovery(QObject *parent) :
     QUdpSocket(parent),
     m_timeout(new QTimer(this))
 {
-    quint16 port = 1900;
+    quint16 port = 0;
     unsigned int tries = 0;
     const unsigned int maxtries = 10;
 
+    qDebug() << "Will bind on port " << port;
     while (!bind(port++)) {
+      qDebug() << "Failed to find, next try on port " << port;
         if (++tries == maxtries) {
             QMetaObject::invokeMethod(this, "error", Qt::QueuedConnection);
             return;
         }
     }
+    qDebug() << "Local port :" << localPort();
+    qDebug() << "Peer port :" << peerPort();
+
 
     connect(this, SIGNAL(readyRead()), this, SLOT(onReadyRead()));
 
@@ -58,9 +63,10 @@ void Discovery::findBridges()
               "ST: libhue:idl\r\n");
     b.arg(DISCOVERY_TIMEOUT);
 
-//    qDebug() << "writing datagram" << b;
+    qDebug() << "writing datagram" << b;
     m_timeout->start(DISCOVERY_TIMEOUT * 1000);
     if (writeDatagram(b.toUtf8(), QHostAddress("239.255.255.250"), 1900) < 0) {
+      qDebug() << "Failed to write datagram";
         emit error();
     }
 }
@@ -84,7 +90,7 @@ void Discovery::onReadyRead()
 
         readDatagram(datagram.data(), datagram.size(), &sender, &senderPort);
 
-//        qDebug() << "got datagram" << datagram;
+        qDebug() << "got datagram" << datagram;
         if (!m_reportedBridges.contains(sender)) {
             sender.setAddress(sender.toIPv4Address());
             m_reportedBridges << sender;

@@ -118,9 +118,10 @@ void HueBridgeConnection::onFoundBridge(QHostAddress bridge)
     }
 
     // Emitting this after we know if we can connect or not to avoid the ui triggering connect dialogs
+    emit bridgeFoundChanged();
+
     m_bridgeStatus = BridgeStatusConnecting;
     emit statusChanged();
-    emit bridgeFoundChanged();
 }
 
 void HueBridgeConnection::onNoBridgesFound()
@@ -206,12 +207,13 @@ int HueBridgeConnection::post(const QString &path, const QVariantMap &params, QO
 #if QT_VERSION >= 0x050000
     QJsonDocument jsonDoc = QJsonDocument::fromVariant(params);
     QByteArray data = jsonDoc.toJson();
+
+    qDebug() << "posting" << jsonDoc.toJson()<< "\nto" << request.url() << "\n" << data;
 #else
     QJson::Serializer serializer;
     QByteArray data = serializer.serialize(params);
 #endif
 
-    qDebug() << "posting" << jsonDoc.toJson()<< "\nto" << request.url() << "\n" << data;
     QNetworkReply *reply = m_nam->post(request, data);
     connect(reply, SIGNAL(finished()), this, SLOT(slotOpFinished()));
     m_requestIdMap.insert(reply, m_requestCounter);
@@ -239,7 +241,7 @@ int HueBridgeConnection::put(const QString &path, const QVariantMap &params, QOb
     QJson::Serializer serializer;
     QByteArray data = serializer.serialize(params);
 #endif
-    qDebug() << "putting" << url << data;
+    //qDebug() << "putting" << url << data;
 
     QNetworkReply *reply = m_nam->put(request, data);
     connect(reply, SIGNAL(finished()), this, SLOT(slotOpFinished()));
@@ -248,6 +250,11 @@ int HueBridgeConnection::put(const QString &path, const QVariantMap &params, QOb
     CallbackObject co(sender, slot);
     m_requestSenderMap.insert(m_requestCounter, co);
     return m_requestCounter++;
+}
+
+void HueBridgeConnection::resetBridgeConnection()
+{
+  m_nam = new QNetworkAccessManager(this);
 }
 
 void HueBridgeConnection::createUserFinished()
@@ -308,7 +315,7 @@ void HueBridgeConnection::slotOpFinished()
     int id = m_requestIdMap.take(reply);
     CallbackObject co = m_requestSenderMap.take(id);
 
-    qDebug() << "reply for" << co.sender() << co.slot();
+    //qDebug() << "reply for" << co.sender() << co.slot();
 //    qDebug() << "response" << response;
 
     QVariant rsp;
@@ -324,7 +331,7 @@ void HueBridgeConnection::slotOpFinished()
 #else
     QJson::Parser parser;
     bool ok;
-    QVariant rsp = parser.parse(response, &ok);
+    rsp = parser.parse(response, &ok);
     if(!ok) {
         qWarning() << "cannot parse response:" << response;
         return;

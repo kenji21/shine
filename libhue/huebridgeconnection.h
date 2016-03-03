@@ -84,6 +84,8 @@ public:
     int post(const QString &path, const QVariantMap &params, QObject *sender, const QString &slot);
     int put(const QString &path, const QVariantMap &params, QObject *sender, const QString &slot);
 
+    void resetBridgeConnection();
+
 signals:
     void apiKeyChanged();
     void discoveryErrorChanged();
