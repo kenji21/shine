@@ -27,6 +27,7 @@
 #include <QHostAddress>
 #include <QVariantMap>
 #include <QPointer>
+#include <QNetworkReply>
 
 class QNetworkAccessManager;
 class QNetworkReply;
@@ -79,7 +80,7 @@ public:
 
     Q_INVOKABLE void createUser(const QString &devicetype, const QString &username);
 
-    int get(const QString &path, QObject *sender, const QString &slot);
+    int get(const QString &path, QObject *sender, const QString &slot, bool errorHandling = false);
     int deleteResource(const QString &path, QObject *sender, const QString &slot);
     int post(const QString &path, const QVariantMap &params, QObject *sender, const QString &slot);
     int put(const QString &path, const QVariantMap &params, QObject *sender, const QString &slot);
@@ -94,6 +95,7 @@ signals:
     void connectedBridgeChanged();
     void stateChanged();
     void statusChanged();
+    void getFailed(QNetworkReply::NetworkError error);
 
     void createUserFailed(const QString &errorMessage);
 
@@ -104,6 +106,7 @@ private slots:
 
     void createUserFinished();
     void slotOpFinished();
+    void onGetFail(QNetworkReply::NetworkError error);
 
 private:
     HueBridgeConnection();

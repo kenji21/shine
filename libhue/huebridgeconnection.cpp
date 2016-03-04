@@ -157,7 +157,7 @@ void HueBridgeConnection::createUser(const QString &devicetype, const QString &u
     connect(reply, SIGNAL(finished()), this, SLOT(createUserFinished()));
 }
 
-int HueBridgeConnection::get(const QString &path, QObject *sender, const QString &slot)
+int HueBridgeConnection::get(const QString &path, QObject *sender, const QString &slot, bool errorHandling)
 {
     if (m_baseApiUrl.isEmpty()) {
         qWarning() << "Not authenticated to bridge, cannot get" << path;
@@ -168,10 +168,18 @@ int HueBridgeConnection::get(const QString &path, QObject *sender, const QString
     request.setUrl(url);
     QNetworkReply *reply = m_nam->get(request);
     connect(reply, SIGNAL(finished()), this, SLOT(slotOpFinished()));
+    if (errorHandling) {
+      connect(reply, SIGNAL(error(QNetworkReply::NetworkError)), this, SLOT(onGetFail(QNetworkReply::NetworkError)));
+    }
     m_requestIdMap.insert(reply, m_requestCounter);
     CallbackObject co(sender, slot);
     m_requestSenderMap.insert(m_requestCounter, co);
     return m_requestCounter++;
+}
+
+void HueBridgeConnection::onGetFail(QNetworkReply::NetworkError error)
+{
+    emit getFailed(error);
 }
 
 int HueBridgeConnection::deleteResource(const QString &path, QObject *sender, const QString &slot)
@@ -316,7 +324,7 @@ void HueBridgeConnection::slotOpFinished()
     CallbackObject co = m_requestSenderMap.take(id);
 
     //qDebug() << "reply for" << co.sender() << co.slot();
-//    qDebug() << "response" << response;
+    //qDebug() << "response" << response;
 
     QVariant rsp;
 #if QT_VERSION >= 0x050000
