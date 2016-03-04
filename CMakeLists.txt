@@ -12,7 +12,7 @@ else() # win32
 endif()
 
 if(DESKTOP_BUILD)
-    set(QT4_BUILD 1)
+    #set(QT4_BUILD 1)
     if(UNIX)
       include_directories(qjson-install/include)
       link_directories(qjson-install/lib)

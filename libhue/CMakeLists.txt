@@ -17,7 +17,7 @@ set(libhue_SRCS
 add_library(hue SHARED ${libhue_SRCS})
 
 if(DESKTOP_BUILD)
-  set(QT4_BUILD 1)
+  #set(QT4_BUILD 1)
   if(WIN32)
     if(NOT QT4_BUILD)
       find_package(Qt5Core)
@@ -48,13 +48,13 @@ if(DESKTOP_BUILD)
       light.cpp
       lightinterface.h
   )
-    
+
       if(CMAKE_BUILD_TYPE MATCHES Debug)
         if(NOT QT4_BUILD)
           target_link_libraries(hue qjsond Qt5::Widgets Qt5::Network Qt5::Gui)
         else()
           target_link_libraries(hue qjsond ${QTCORE} ${QTNETWORK} ${QTGUI})
-        endif()    
+        endif()
       else()
         if(NOT QT4_BUILD)
            target_link_libraries(hue qjson Qt5::Widgets Qt5::Network Qt5::Gui)
@@ -68,4 +68,3 @@ elseif(HARMATTAN_BUILD)
 else()
     qt5_use_modules(hue Gui Network)
 endif()
-

@@ -23,7 +23,7 @@
 #include <QTimer>
 
 // Discovery timeout in seconds
-const unsigned int DISCOVERY_TIMEOUT = 3;
+const unsigned int DISCOVERY_TIMEOUT = 1;
 
 Discovery::Discovery(QObject *parent) :
     QUdpSocket(parent),
@@ -35,7 +35,7 @@ Discovery::Discovery(QObject *parent) :
 
     qDebug() << "Will bind on port " << port;
     while (!bind(port++)) {
-      qDebug() << "Failed to find, next try on port " << port;
+      qDebug() << "Failed to bind, next try on port " << port;
         if (++tries == maxtries) {
             QMetaObject::invokeMethod(this, "error", Qt::QueuedConnection);
             return;
@@ -60,10 +60,10 @@ void Discovery::findBridges()
               "HOST: 239.255.255.250:1900\r\n"
               "MAN: \"ssdp:discover\"\r\n"
               "MX: %1\r\n"
-              "ST: libhue:idl\r\n");
+              "ST: libhue:idl\r\n\r\n");
     b.arg(DISCOVERY_TIMEOUT);
 
-    qDebug() << "writing datagram" << b;
+    qDebug() << "Start searching for Hue device -> " << b;
     m_timeout->start(DISCOVERY_TIMEOUT * 1000);
     if (writeDatagram(b.toUtf8(), QHostAddress("239.255.255.250"), 1900) < 0) {
       qDebug() << "Failed to write datagram";
@@ -74,6 +74,8 @@ void Discovery::findBridges()
 void Discovery::onTimeout()
 {
     if (m_reportedBridges.isEmpty()) {
+        qDebug() << Q_FUNC_INFO << "Any Hue bridge found, try again ...";
+
         emit noBridgesFound();
         // Try again...
         findBridges();
@@ -90,11 +92,15 @@ void Discovery::onReadyRead()
 
         readDatagram(datagram.data(), datagram.size(), &sender, &senderPort);
 
-        qDebug() << "got datagram" << datagram;
-        if (!m_reportedBridges.contains(sender)) {
-            sender.setAddress(sender.toIPv4Address());
-            m_reportedBridges << sender;
-            emit foundBridge(sender);
+        QString stringDatagram(datagram);
+        qDebug() << "Got SSDP datagram" << stringDatagram;
+
+        if (stringDatagram.contains("IpBridge", Qt::CaseInsensitive)) {
+            if (!m_reportedBridges.contains(sender)) {
+                sender.setAddress(sender.toIPv4Address());
+                m_reportedBridges << sender;
+                emit foundBridge(sender);
+            }
         }
     }
 }
