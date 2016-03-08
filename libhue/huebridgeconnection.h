@@ -107,6 +107,7 @@ private slots:
     void createUserFinished();
     void slotOpFinished();
     void onGetFail(QNetworkReply::NetworkError error);
+    void onQueryError(QNetworkReply::NetworkError error);
 
 private:
     HueBridgeConnection();

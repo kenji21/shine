@@ -155,6 +155,8 @@ void HueBridgeConnection::createUser(const QString &devicetype, const QString &u
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
     QNetworkReply *reply = m_nam->post(request, data);
     connect(reply, SIGNAL(finished()), this, SLOT(createUserFinished()));
+    connect(reply, SIGNAL(error(QNetworkReply::NetworkError)),
+        this, SLOT(onQueryError(QNetworkReply::NetworkError)));
 }
 
 int HueBridgeConnection::get(const QString &path, QObject *sender, const QString &slot, bool errorHandling)
@@ -168,6 +170,8 @@ int HueBridgeConnection::get(const QString &path, QObject *sender, const QString
     request.setUrl(url);
     QNetworkReply *reply = m_nam->get(request);
     connect(reply, SIGNAL(finished()), this, SLOT(slotOpFinished()));
+    connect(reply, SIGNAL(error(QNetworkReply::NetworkError)),
+        this, SLOT(onQueryError(QNetworkReply::NetworkError)));
     if (errorHandling) {
       connect(reply, SIGNAL(error(QNetworkReply::NetworkError)), this, SLOT(onGetFail(QNetworkReply::NetworkError)));
     }
@@ -175,6 +179,12 @@ int HueBridgeConnection::get(const QString &path, QObject *sender, const QString
     CallbackObject co(sender, slot);
     m_requestSenderMap.insert(m_requestCounter, co);
     return m_requestCounter++;
+}
+
+void HueBridgeConnection::onQueryError(QNetworkReply::NetworkError error)
+{
+    qDebug() << "HueBridgeConnection : Query Failed with status" << error;
+    //resetBridgeConnection();
 }
 
 void HueBridgeConnection::onGetFail(QNetworkReply::NetworkError error)
@@ -193,6 +203,8 @@ int HueBridgeConnection::deleteResource(const QString &path, QObject *sender, co
     request.setUrl(url);
     QNetworkReply *reply = m_nam->deleteResource(request);
     connect(reply, SIGNAL(finished()), this, SLOT(slotOpFinished()));
+    connect(reply, SIGNAL(error(QNetworkReply::NetworkError)),
+        this, SLOT(onQueryError(QNetworkReply::NetworkError)));
     m_requestIdMap.insert(reply, m_requestCounter);
     m_writeOperationList.append(reply);
     CallbackObject co(sender, slot);
@@ -224,6 +236,8 @@ int HueBridgeConnection::post(const QString &path, const QVariantMap &params, QO
 
     QNetworkReply *reply = m_nam->post(request, data);
     connect(reply, SIGNAL(finished()), this, SLOT(slotOpFinished()));
+    connect(reply, SIGNAL(error(QNetworkReply::NetworkError)),
+        this, SLOT(onQueryError(QNetworkReply::NetworkError)));
     m_requestIdMap.insert(reply, m_requestCounter);
     m_writeOperationList.append(reply);
     CallbackObject co(sender, slot);
@@ -253,6 +267,8 @@ int HueBridgeConnection::put(const QString &path, const QVariantMap &params, QOb
 
     QNetworkReply *reply = m_nam->put(request, data);
     connect(reply, SIGNAL(finished()), this, SLOT(slotOpFinished()));
+    connect(reply, SIGNAL(error(QNetworkReply::NetworkError)),
+        this, SLOT(onQueryError(QNetworkReply::NetworkError)));
     m_requestIdMap.insert(reply, m_requestCounter);
     m_writeOperationList.append(reply);
     CallbackObject co(sender, slot);
