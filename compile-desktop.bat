@@ -14,7 +14,10 @@ mkdir build-desktop-win
 cd build-desktop-win
 
 cmake.exe -G "MinGW Makefiles" .. -DDESKTOP_BUILD=1
+:: -DCMAKE_PREFIX_PATH=C:\Qt\Qt5.5.1\5.5\mingw492_32\bin -DWITH_QT5=1
 
 mingw32-make.exe
 
 cd ..
+
+pause

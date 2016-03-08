@@ -91,6 +91,7 @@ private slots:
     void timeout();
 
 private:
+    void manageDirtyValues();
     void setReachable(bool reachable);
 
     int m_id;
