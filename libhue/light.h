@@ -111,6 +111,7 @@ private:
     QString m_effect;
     ColorMode m_colormode;
     bool m_reachable;
+    bool m_refreshed;
 
     int m_busyStateChangeId;
     bool m_hueDirty;

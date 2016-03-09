@@ -368,7 +368,12 @@ bool Light::reachable() const
 
 void Light::refresh()
 {
-    HueBridgeConnection::instance()->get("lights/" + QString::number(m_id), this, "responseReceived");
+    if( m_refreshed == false )
+    {
+        qDebug() << " Light::refresh()" << endl;
+        HueBridgeConnection::instance()->get("lights/" + QString::number(m_id), this, "responseReceived");
+        m_refreshed = true;
+    }
 }
 
 void Light::setReachable(bool reachable)
@@ -408,7 +413,7 @@ void Light::responseReceived(int id, const QVariant &response)
     m_reachable = stateMap.value("reachable").toBool();
     emit stateChanged();
 
-//    qDebug() << "got light response" << m_modelId << m_type << m_swversion << m_on << m_bri << m_reachable;
+   qDebug() << "got light response" << m_modelId << m_type << m_swversion << m_on << m_bri << m_reachable;
 }
 
 void Light::setDescriptionFinished(int id, const QVariant &response)
