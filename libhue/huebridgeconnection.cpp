@@ -347,7 +347,8 @@ void HueBridgeConnection::slotOpFinished()
     QJsonParseError error;
     QJsonDocument jsonDoc = QJsonDocument::fromJson(response, &error);
     if (error.error != QJsonParseError::NoError) {
-        qWarning() << "error parsing get response:" << error.errorString();
+        qWarning() << "error parsing get response:" << response;
+        qWarning() << "error parsing get response with error:" << error.errorString();
         return;
     } else {
         rsp = jsonDoc.toVariant();

@@ -37,7 +37,8 @@ Light::Light(int id, const QString &name, QObject *parent):
     m_ctDirty(false),
     m_xyDirty(false)
 {
-    m_timeout.setInterval(200);
+    m_timeout.setInterval(1000);
+    m_timeout.setSingleShot(true);
     connect(&m_timeout, &QTimer::timeout, this, &Light::timeout);
 
     refresh();
@@ -218,7 +219,7 @@ void Light::setColorWithXY(const QColor &color)
     int bri = color.value();
 
     if (m_busyStateChangeId == -1) {
-        qDebug() << "setting color" << color;
+        qDebug() << "setting color" << color << "for light" << QString::number(m_id);
 
         QVariantMap params;
 
@@ -228,11 +229,13 @@ void Light::setColorWithXY(const QColor &color)
         params.insert("bri", bri);
 
         params.insert("on", true);
-        m_busyStateChangeId = HueBridgeConnection::instance()->put("lights/" + QString::number(m_id) + "/state", params, this, "setStateFinished");
+        qDebug() << "Starting timeout and PUT ... " << "for light" << QString::number(m_id);
         m_timeout.start();
-        qDebug() << "Starting timeout ... ";
+        m_busyStateChangeId = HueBridgeConnection::instance()->put("lights/" + QString::number(m_id) + "/state", params, this, "setStateFinished");
     } else {
-        qDebug() << "Dirty mode" << m_busyStateChangeId << "not setting color" << color;
+        qDebug() << "PUT already running (going dirty bri and xy)"
+            << m_busyStateChangeId << "not setting color" << color
+            << "for light" << QString::number(m_id);
 
         m_briDirty = true;
         m_dirtyBri = bri;
@@ -243,56 +246,7 @@ void Light::setColorWithXY(const QColor &color)
 
 void Light::setColor(const QColor &color)
 {
-    // Transform from RGB to Hue/Sat
-    quint16 hue = color.hue() * 65535 / 360;
-    quint8 sat = color.saturation();
-
-    // Transform from RGB to XYZ
-    QGenericMatrix<3, 3, qreal> rgb2xyzMatrix;
-    rgb2xyzMatrix(0, 0) = 0.412453;    rgb2xyzMatrix(0, 1) = 0.357580;    rgb2xyzMatrix(0, 2) = 0.180423;
-    rgb2xyzMatrix(1, 0) = 0.212671;    rgb2xyzMatrix(1, 1) = 0.715160;    rgb2xyzMatrix(1, 2) = 0.072169;
-    rgb2xyzMatrix(2, 0) = 0.019334;    rgb2xyzMatrix(2, 1) = 0.119193;    rgb2xyzMatrix(2, 2) = 0.950227;
-
-    QGenericMatrix<1, 3, qreal> rgbMatrix;
-    rgbMatrix(0, 0) = 1.0 * color.red() / 255;
-    rgbMatrix(1, 0) = 1.0 * color.green() / 255;
-    rgbMatrix(2, 0) = 1.0 * color.blue() / 255;
-
-    QGenericMatrix<1, 3, qreal> xyzMatrix = rgb2xyzMatrix * rgbMatrix;
-
-    // transform from XYZ to CIELUV u' and v'
-    qreal u = 4*xyzMatrix(0, 0) / (xyzMatrix(0, 0) + 15*xyzMatrix(1, 0) + 3*xyzMatrix(2, 0));
-    qreal v = 9*xyzMatrix(1, 0) / (xyzMatrix(0, 0) + 15*xyzMatrix(1, 0) + 3*xyzMatrix(2, 0));
-
-    // Transform from CIELUV to (x,y)
-    qreal x = 27*u / (18*u - 48*v + 36);
-    qreal y = 12*v / (18*u - 48*v + 36);
-
-    qDebug() << "setting color" << color;
-    if (m_busyStateChangeId == -1) {
-        QVariantMap params;
-
-        params.insert("hue", hue);
-        params.insert("sat", sat);
-        // FIXME: There is a bug in the API that it doesn't report back the set state of "sat"
-        // Lets just assume it always succeeds
-        m_sat = sat;
-
-//        QVariantList xyList;
-//        xyList << x << y;
-//        params.insert("xy", xyList);
-
-
-        params.insert("on", true);
-        m_busyStateChangeId = HueBridgeConnection::instance()->put("lights/" + QString::number(m_id) + "/state", params, this, "setStateFinished");
-    } else {
-        m_dirtyHue = hue;
-        m_hueDirty = true;
-        m_dirtySat = sat;
-        m_satDirty = true;
-//        m_xyDirty = true;
-//        m_dirtyXy = QPointF(x, y);
-    }
+    setColorWithXY(color);
 }
 
 QPointF Light::xy() const
@@ -371,6 +325,7 @@ void Light::refresh()
     if( m_refreshed == false )
     {
         qDebug() << " Light::refresh()" << endl;
+        m_timeout.start();
         HueBridgeConnection::instance()->get("lights/" + QString::number(m_id), this, "responseReceived");
         m_refreshed = true;
     }
@@ -432,6 +387,22 @@ void Light::setDescriptionFinished(int id, const QVariant &response)
 
 void Light::setStateFinished(int id, const QVariant &response)
 {
+    if( id != m_busyStateChangeId )
+    {
+        qDebug() << "PUT finished but not for current query id " << QString::number(m_busyStateChangeId) << "... (received " << QString::number(id) << ")";
+        return;
+    }
+    if( m_xyDirty || m_hueDirty || m_satDirty || m_briDirty || m_ctDirty )
+    {
+        qDebug() << "PUT finished (with dirty states m_briDirty: " << m_briDirty
+            << ", m_xyDirty: " << m_xyDirty
+            << ", m_hueDirty: " << m_hueDirty
+            << ", m_satDirty: " << m_satDirty
+            << ", m_briDirty: " << m_briDirty
+            << ", m_ctDirty: " << m_ctDirty
+            << ") for light" << QString::number(m_id);
+    }
+
     foreach (const QVariant &resultVariant, response.toList()) {
         QVariantMap result = resultVariant.toMap();
         if (result.contains("success")) {
@@ -463,13 +434,12 @@ void Light::setStateFinished(int id, const QVariant &response)
             }
         }
     }
-    emit stateChanged();
 
-    if (m_busyStateChangeId == id) {
-        m_busyStateChangeId = -1;
-        m_timeout.stop();
-        //manageDirtyValues();
-    }
+    m_timeout.stop();
+    m_busyStateChangeId = -1;
+    manageDirtyValues();
+
+    emit stateChanged();
 }
 
  void Light::manageDirtyValues()
@@ -493,15 +463,17 @@ void Light::setStateFinished(int id, const QVariant &response)
          // Lets just assume it always succeeds
          m_sat = m_dirtySat;
 
-         m_busyStateChangeId = HueBridgeConnection::instance()->put("lights/" + QString::number(m_id) + "/state", params, this, "setStateFinished");
+         qDebug() << "Starting timeout and PUT because m_hueDirty || m_satDirty... " << "for light" << QString::number(m_id);
          m_timeout.start();
+         m_busyStateChangeId = HueBridgeConnection::instance()->put("lights/" + QString::number(m_id) + "/state", params, this, "setStateFinished");
      } else if(m_ctDirty) {
          QVariantMap params;
          params.insert("ct", m_dirtyCt);
          m_ctDirty = false;
 
-         m_busyStateChangeId = HueBridgeConnection::instance()->put("lights/" + QString::number(m_id) + "/state", params, this, "setStateFinished");
+         qDebug() << "Starting timeout and PUT because m_ctDirty ... " << "for light" << QString::number(m_id);
          m_timeout.start();
+         m_busyStateChangeId = HueBridgeConnection::instance()->put("lights/" + QString::number(m_id) + "/state", params, this, "setStateFinished");
      } else if (m_xyDirty || m_briDirty) {
          QVariantMap params;
          QVariantList xyList;
@@ -511,26 +483,18 @@ void Light::setStateFinished(int id, const QVariant &response)
          params.insert("bri", m_dirtyBri);
          m_briDirty = false;
 
-         m_busyStateChangeId = HueBridgeConnection::instance()->put("lights/" + QString::number(m_id) + "/state", params, this, "setStateFinished");
+         qDebug() << "Starting timeout and PUT because m_xyDirty || m_briDirty ... " << "for light" << QString::number(m_id);
          m_timeout.start();
+         m_busyStateChangeId = HueBridgeConnection::instance()->put("lights/" + QString::number(m_id) + "/state", params, this, "setStateFinished");
      }
  }
 
 void Light::timeout()
 {
-    qDebug() << ">>>>>>Failed to send data, resetting bridge connection";
+    qDebug() << ">>>>>>timeout to send data, resetting bridge connection" << "for light" << QString::number(m_id);
     HueBridgeConnection::instance()->resetBridgeConnection();
+
     m_timeout.stop();
-
     m_busyStateChangeId = -1;
-    //manageDirtyValues();
-
-
-    m_busyStateChangeId = -1;
-    m_hueDirty = false;
-    m_satDirty = false;
-    m_briDirty = false;
-    m_ctDirty = false;
-    m_xyDirty = false;
-
+    manageDirtyValues();
 }
