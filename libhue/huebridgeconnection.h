@@ -29,6 +29,8 @@
 #include <QPointer>
 #include <QNetworkReply>
 
+#include "discovery.h"
+
 class QNetworkAccessManager;
 class QNetworkReply;
 
@@ -86,6 +88,7 @@ public:
     int put(const QString &path, const QVariantMap &params, QObject *sender, const QString &slot);
 
     void resetBridgeConnection();
+    void findBridges();
 
 signals:
     void apiKeyChanged();
@@ -112,6 +115,7 @@ private slots:
 private:
     HueBridgeConnection();
     static HueBridgeConnection *s_instance;
+    Discovery *m_discovery;
 
     QNetworkAccessManager *m_nam;
 

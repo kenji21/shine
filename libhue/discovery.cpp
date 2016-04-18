@@ -78,7 +78,7 @@ void Discovery::onTimeout()
 
         emit noBridgesFound();
         // Try again...
-        findBridges();
+        // findBridges();
     }
 }
 

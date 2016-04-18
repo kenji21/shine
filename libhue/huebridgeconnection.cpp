@@ -33,8 +33,6 @@
 #include "qjson/serializer.h"
 #endif
 
-#include "discovery.h"
-
 HueBridgeConnection *HueBridgeConnection::s_instance = 0;
 
 HueBridgeConnection *HueBridgeConnection::instance()
@@ -92,11 +90,11 @@ HueBridgeConnection::HueBridgeConnection():
     m_bridgeStatus(BridgeStatusSearching),
     m_requestCounter(0)
 {
-    Discovery *discovery = new Discovery(this);
-    connect(discovery, SIGNAL(error()), this, SLOT(onDiscoveryError()));
-    connect(discovery, SIGNAL(foundBridge(QHostAddress)), this, SLOT(onFoundBridge(QHostAddress)));
-    connect(discovery, SIGNAL(noBridgesFound()), this, SLOT(onNoBridgesFound()));
-    discovery->findBridges();
+    m_discovery = new Discovery(this);
+    connect(m_discovery, SIGNAL(error()), this, SLOT(onDiscoveryError()));
+    connect(m_discovery, SIGNAL(foundBridge(QHostAddress)), this, SLOT(onFoundBridge(QHostAddress)));
+    connect(m_discovery, SIGNAL(noBridgesFound()), this, SLOT(onNoBridgesFound()));
+    m_discovery->findBridges();
 }
 
 void HueBridgeConnection::onDiscoveryError()
@@ -129,6 +127,11 @@ void HueBridgeConnection::onNoBridgesFound()
     //FIXME: handle error case
     qDebug() << Q_FUNC_INFO << "No hue bridges found!";
     emit noBridgesFound();
+}
+
+void HueBridgeConnection::findBridges()
+{
+  m_discovery->findBridges();
 }
 
 void HueBridgeConnection::createUser(const QString &devicetype, const QString &username)
