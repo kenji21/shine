@@ -25,7 +25,19 @@
 #include "../../libhue/light.h"
 #include "../../libhue/groups.h"
 #include "../../libhue/group.h"
+#include "../../libhue/scenes.h"
+#include "../../libhue/scene.h"
+#include "../../libhue/schedules.h"
+#include "../../libhue/schedule.h"
 #include "../../libhue/lightsfiltermodel.h"
+#include "../../libhue/scenesfiltermodel.h"
+#include "../../libhue/configuration.h"
+#include "../../libhue/sensor.h"
+#include "../../libhue/sensors.h"
+#include "../../libhue/sensorsfiltermodel.h"
+#include "../../libhue/rule.h"
+#include "../../libhue/rules.h"
+#include "../../libhue/rulesfiltermodel.h"
 
 #if QT_VERSION >= 0x050000
 #include <QtQml/qqml.h>
@@ -52,10 +64,22 @@ void HuePlugin::registerTypes(const char *uri)
     qmlRegisterType<Lights>(uri, 0, 1, "Lights");
     qmlRegisterUncreatableType<Light>(uri, 0, 1, "Light", "Cannot create lights. Get them from the Lights model.");
     qmlRegisterUncreatableType<LightInterface>(uri, 0, 1, "LightInterface", "Abstract interface.");
+    qmlRegisterType<LightsFilterModel>(uri, 0, 1, "LightsFilterModel");
     qmlRegisterType<Groups>(uri, 0, 1, "Groups");
     //FIXME: eventually creatable
     qmlRegisterUncreatableType<Group>(uri, 0, 1, "Group", "Cannot create groups. Get them from the Groups model.");
-    qmlRegisterType<LightsFilterModel>(uri, 0, 1, "LightsFilterModel");
+    qmlRegisterType<Scenes>(uri, 0, 1, "Scenes");
+    qmlRegisterUncreatableType<Scene>(uri, 0, 1, "Scene", "Cannot create Scene objects. Get them from the Scenes model.");
+    qmlRegisterType<ScenesFilterModel>(uri, 0, 1, "ScenesFilterModel");
+    qmlRegisterType<Schedules>(uri, 0, 1, "Schedules");
+    qmlRegisterUncreatableType<Schedule>(uri, 0, 1, "Schedule", "Cannot create Schedule objects. Get them from the Schedules model.");
+    qmlRegisterType<Configuration>(uri, 0, 1, "Configuration");
+    qmlRegisterType<Sensors>(uri, 0, 1, "Sensors");
+    qmlRegisterType<SensorsFilterModel>(uri, 0, 1, "SensorsFilterModel");
+    qmlRegisterUncreatableType<Sensor>(uri, 0, 1, "Sensor", "Cannot create Sensor objects. Get them from the Sensors model.");
+    qmlRegisterType<Rules>(uri, 0, 1, "Rules");
+    qmlRegisterType<RulesFilterModel>(uri, 0, 1, "RulesFilterModel");
+    qmlRegisterUncreatableType<Rule>(uri, 0, 1, "Rule", "Cannot create Rule objects. Get them from the Rules model.");
 }
 
 

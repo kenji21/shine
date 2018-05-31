@@ -17,10 +17,10 @@
  *      Michael Zanetti <michael_zanetti@gmx.net>
  */
 
-import QtQuick 2.0
-import Ubuntu.Components 0.1
-import Ubuntu.Components.ListItems 0.1
-import Ubuntu.Components.Popups 0.1
+import QtQuick 2.3
+import Ubuntu.Components 1.3
+import Ubuntu.Components.ListItems 1.3
+import Ubuntu.Components.Popups 1.3
 import Hue 0.1
 
 Page {
@@ -28,154 +28,89 @@ Page {
     title: "Lights"
 
     property alias lights: lightsFilterModel.lights
+    property var groups: null
+    property var schedules: null
 
-    tools: ToolbarItems {
-        ToolbarButton {
-            text: "group"
-            iconName: "delete"
-            enabled: groupSelector.selectedIndex > 0
-            onTriggered: {
-                groups.deleteGroup(groups.get(groupSelector.selectedIndex).id)
-                groupSelector.selectedIndex = 0;
+    head {
+        actions: [
+            Action {
+                text: "group"
+                iconName: "add"
+                onTriggered: {
+                    var popup = PopupUtils.open(Qt.resolvedUrl("CreateDialog.qml"), root, {mode: "group", lights: root.lights})
+                    popup.accepted.connect(function(name, lightsList) {
+                        groups.createGroup(name, lightsList);
+                    })
+                }
             }
-        }
-        ToolbarButton {
-            text: "group"
-            iconName: "add"
-            onTriggered: PopupUtils.open(addGroupComponent, root)
-        }
+        ]
     }
 
-    Groups {
-        id: groups
-    }
-
-    Column {
+    Item { // wrap flickable to disable header fancyness
         anchors.fill: parent
+        clip: true
 
-        Row {
-            anchors { left: parent.left; right: parent.right; margins: units.gu(2) }
-            height: groupSelector.height + units.gu(2)
-            spacing: units.gu(2)
-
-            OptionSelector {
-                id: groupSelector
-                anchors { top: parent.top; margins: units.gu(1) }
-                width: parent.width - groupSwitch.width - parent.spacing
-                model: groups
-
-                delegate: OptionSelectorDelegate {
-                    text: name
-                    height: units.gu(5)
-                }
-
-                onSelectedIndexChanged: {
-                    lightsFilterModel.groupId = groups.get(selectedIndex).id
-                    groupSwitch.reload();
-                }
-            }
-            Switch {
-                id: groupSwitch
-                anchors { top: parent.top; margins: units.gu(1) }
-                iconSource: "image://theme/torch-off"
-                checked: groups.get(groupSelector.selectedIndex).on
-                visible: groups.count > 0
-                onClicked: {
-                    groups.get(groupSelector.selectedIndex).on = checked;
-                }
-
-                Connections {
-                    target: groups.get(groupSelector.selectedIndex)
-                    onStateChanged: groupSwitch.reload();
-                }
-                function reload() {
-                    groupSwitch.checked = groups.get(groupSelector.selectedIndex).on;
-                }
-            }
-        }
-
-        Divider {}
-
-        ListView {
-            id: lightsListView
-            anchors {left: parent.left; right: parent.right }
-            height: parent.height - y
-            clip: true
-
-            model: LightsFilterModel {
-                id: lightsFilterModel
-            }
-
-            property var expandedItem: null
-
-            delegate: LightDelegate {
-                id: delegateItem
-                light: lightsFilterModel.get(index)
-            }
-
-            add: Transition {
-                UbuntuNumberAnimation { properties: "opacity"; from: 0; to: 1 }
-            }
-            displaced: Transition {
-                UbuntuNumberAnimation { properties: "x,y" }
-            }
-        }
-    }
-
-    Component {
-        id: addGroupComponent
-        ComposerSheet {
-            title: "Add group"
-
-            onConfirmClicked: {
-                var lightsList = new Array;
-                for (var i = 0; i < lightsCheckboxes.count; ++i) {
-                    if (lightsCheckboxes.itemAt(i).checked) {
-                        print("adding light", i)
-                        lightsList.push(lights.get(i).id);
-                        print("list is now", lightsList.length)
-                    }
-                }
-
-                groups.createGroup(nameTextField.text, lightsList);
-            }
+        Flickable {
+            id: mainFlickable
+            anchors.fill: parent
+            contentHeight: mainColumn.height
+            interactive: contentHeight > height
 
             Column {
-                anchors { fill: parent; margins: units.gu(2) }
-                spacing: units.gu(1)
+                id: mainColumn
+                anchors { left: parent.left; right: parent.right }
 
-                Row {
-                    anchors { left: parent.left; right: parent.right }
-                    spacing: units.gu(1)
+                add: Transition {
+                    UbuntuNumberAnimation { properties: "opacity"; from: 0 }
+                }
+                move: Transition {
+                    UbuntuNumberAnimation { properties: "x,y" }
+                }
 
-                    Label {
-                        text: "Name"
-                        anchors.verticalCenter: parent.verticalCenter
-                    }
+                Label {
+                    text: "Groups"
+                    anchors {left: parent.left; right: parent.right; margins: units.gu(2) }
+                    height: units.gu(3)
+                    verticalAlignment: Text.AlignVCenter
+                }
 
-                    TextField {
-                        id: nameTextField
-                        width: parent.width - x
+                ThinDivider {}
+
+                Repeater {
+                    model: groups
+
+                    delegate: LightDelegate {
+                        light: groups.get(index)
+                        schedules: root.schedules
+                        Connections {
+                            target: groups.get(index)
+                            onWriteOperationFinished: {
+                                root.lights.refresh()
+                            }
+                        }
                     }
                 }
-                ThinDivider {}
-                Column {
-                    anchors { left: parent.left; right: parent.right }
-                    spacing: units.gu(1)
 
-                    Repeater {
-                        id: lightsCheckboxes
-                        model: root.lights
-                        delegate: Row {
-                            width: parent.width
-                            spacing: units.gu(1)
-                            property alias checked: checkBox.checked
-                            CheckBox {
-                                id: checkBox
-                            }
-                            Label {
-                                text: name
-                                anchors.verticalCenter: parent.verticalCenter
+                Label {
+                    anchors {left: parent.left; right: parent.right; margins: units.gu(2) }
+                    text: "Lights"
+                    height: units.gu(3)
+                    verticalAlignment: Text.AlignVCenter
+                }
+
+                ThinDivider {}
+
+                Repeater {
+                    model: LightsFilterModel {
+                        id: lightsFilterModel
+                    }
+                    delegate: LightDelegate {
+                        light: lightsFilterModel.get(index)
+                        schedules: root.schedules
+                        Connections {
+                            target: lightsFilterModel.get(index)
+                            onWriteOperationFinished: {
+                                root.groups.refresh()
                             }
                         }
                     }

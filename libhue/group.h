@@ -55,6 +55,8 @@ public:
 
     QList<int> lightIds() const;
 
+    bool isGroup() const;
+
 public slots:
     void refresh();
     void setOn(bool on);
@@ -77,12 +79,38 @@ private slots:
 
     void setStateFinished(int id, const QVariant &response);
 
+    void timeout();
 private:
     int m_id;
     QString m_name;
     QList<int> m_lightIds;
 
     bool m_on;
+    quint8 m_bri;
+    quint16 m_hue;
+    quint8 m_sat;
+    QPointF m_xy;
+    quint16 m_ct;
+    QString m_alert;
+    QString m_effect;
+    ColorMode m_colormode;
+    bool m_reachable;
+
+    int m_busyStateChangeId;
+    bool m_hueDirty;
+    quint16 m_dirtyHue;
+    bool m_satDirty;
+    quint8 m_dirtySat;
+    bool m_briDirty;
+    quint8 m_dirtyBri;
+    bool m_ctDirty;
+    quint16 m_dirtyCt;
+    bool m_xyDirty;
+    QPointF m_dirtyXy;
+
+    QTimer m_timeout;
+
+    friend class Groups;
 };
 
 #endif

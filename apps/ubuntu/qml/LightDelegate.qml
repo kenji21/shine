@@ -17,244 +17,182 @@
  *      Michael Zanetti <michael_zanetti@gmx.net>
  */
 
-import QtQuick 2.0
-import Ubuntu.Components 0.1
-import Ubuntu.Components.ListItems 0.1
+import QtQuick 2.3
+import Ubuntu.Components 1.3
+import Ubuntu.Components.ListItems 1.3
+import Ubuntu.Components.Popups 1.3
+import Ubuntu.Components.Pickers 1.3
 import Hue 0.1
 
-Empty {
+ListItem {
     id: root
-    clip: true
-    opacity: light && light.reachable ? 1 : .5
-
-    property int expandedHeight: delegateColumn.height
     property var light
+    property var schedules: null
 
-    property bool __isExpanded: ListView.view.expandedItem == root
-
-    states: [
-        State {
-            name: "expanded"; when: root.__isExpanded
-            PropertyChanges { target: root; implicitHeight: root.expandedHeight + units.gu(2) }
-        },
-        State {
-            name: "rename"
-            PropertyChanges { target: mainRow; opacity: 0 }
-            PropertyChanges { target: renameRow; opacity: 1 }
-        }
-
-    ]
-    transitions: [
-        Transition {
-            from: "*"; to: "*"
-            UbuntuNumberAnimation { properties: "implicitHeight" }
-            UbuntuNumberAnimation { properties: "opacity" }
-        }
-    ]
-
-
+    signal changed()
 
     onClicked: {
-        if (light.reachable) {
-            if (ListView.view.expandedItem == root) {
-                ListView.view.expandedItem = null;
-            } else {
-                ListView.view.expandedItem = root;
-            }
-        }
+        pageStack.push(Qt.resolvedUrl("LightDetailsPage.qml"), {light: root.light, schedules: root.schedules})
     }
     onPressAndHold: {
-        if (delegateItem.state == "rename") {
-            delegateItem.state = ""
-        } else {
-            delegateItem.state = "rename"
+        PopupUtils.open(renameDialog, this)
+        root.light.alert = "lselect"
+    }
+
+    Connections {
+        target: root.light
+        onStateChanged: {
+            onOffSwitch.checked = root.light.on;
+        }
+        onNameChanged: {
+            nameLabel.text = root.light.name;
         }
     }
 
-    Column {
-        id: delegateColumn
-        anchors { left: parent.left; right: parent.right; leftMargin: units.gu(2); rightMargin: units.gu(2) }
-        spacing: units.gu(2)
-        height: childrenRect.height
+    leadingActions: root.light.isGroup && root.light.id !== 0 ? deleteAction : null
+    ListItemActions {
+        id: deleteAction
+        actions: [
+            Action {
+                iconName: "delete"
+                onTriggered: groups.deleteGroup(groups.get(index).id)
+            }
+        ]
+    }
+    trailingActions: ListItemActions {
+        actions: [
+            Action {
+                iconName: "alarm-clock"
+                onTriggered: {
+                    PopupUtils.open(Qt.resolvedUrl("CreateAlarmDialog.qml"), root, {light: root.light, schedules: root.schedules})
+                }
+            },
+            Action {
+                iconName: "camera-self-timer"
+                onTriggered: PopupUtils.open(Qt.resolvedUrl("CreateTimerDialog.qml"), root, {light: root.light, schedules: root.schedules })
+            },
+            Action {
+                iconName: "edit"
+                onTriggered: root.onPressAndHold()
+            }
+        ]
+    }
 
-        Connections {
-            target: root.light
-            onStateChanged: {
-                brightnessSlider.value = root.light.bri;
-                onOffSwitch.checked = root.light.on;
-                effectSelector.selectedIndex = effectSelector.findIndex();
-                if (!colorPicker.pressed || !colorPicker.active) {
-                    colorPicker.color = root.light.color;
+    Row {
+        id: mainRow
+        anchors {
+            fill: parent
+            leftMargin: units.gu(2);
+            rightMargin: units.gu(2)
+        }
+        spacing: units.gu(1)
+
+        Image {
+            id: icon
+            height: parent.height - units.gu(2)
+            anchors.verticalCenter: parent.verticalCenter
+            width: height
+            source: {
+                if (!light) return "";
+                var name = "images/";
+                print("modelId", light.modelId)
+                switch(light.modelId) {
+                case "LCT001":
+                case "LWB004":
+                case "LWB006":
+                    name += "a19";
+                    break;
+                case "LCT002":
+                    name += "br30";
+                    break;
+                case "LCT003":
+                    name += "gu10";
+                    break;
+                case "LST001":
+                    name += "lightstrip";
+                    break;
+                case "LLC010":
+                case "LLC006":
+                    name += "lc_iris";
+                    break;
+                case "LLC011":
+                case "LLC012":
+                case "LLC007":
+                    name += "lc_bloom";
+                    break;
+                case "LLC013":
+                    name += "storylight";
+                    break;
+                case "LLC020":
+                    name += "huego";
+                    break;
+                case "HBL001":
+                case "HBL002":
+                case "HBL003":
+                    name += "beyond";
+                    break;
+                case "HEL001":
+                case "HEL002":
+                    name += "entity";
+                    break;
+                case "HIL001":
+                case "HIL002":
+                    name += "impulse";
+                    break;
+                case "HML001":
+                case "HML002":
+                case "HML003":
+                case "HML007":
+                    name += "phoenix";
+                    break;
+                default:
+                    name += "group"
                 }
-                colorPicker.active = light ? (light.colormode == LightInterface.ColorModeHS || light.colormode == LightInterface.ColorModeXY) : false
-                if (!colorPickerCt.pressed) {
-                    colorPickerCt.ct = root.light.ct;
-                }
-                colorPickerCt.active = !colorPicker.active
+                name += "_" + (light.reachable ? "outline" : "filled") + ".svg"
+                return name;
             }
-            onNameChanged: {
-                nameLabel.text = root.light.name;
-            }
+
+            sourceSize.width: width
+            sourceSize.height: height
         }
 
-        Item {
-            anchors {
-                left: parent.left
-                right: parent.right
-            }
-            height: units.gu(6)
-            Row {
-                id: mainRow
-                anchors.fill: parent
-                spacing: units.gu(1)
-                visible: opacity > 0
-
-                Icon {
-                    id: icon
-                    height: parent.height - units.gu(2)
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: height
-                    name: light && light.reachable ? light.on ? "torch-on" : "torch-off" : "flash-off"
-                }
-
-                Label {
-                    id: nameLabel
-                    width: parent.width - onOffSwitch.width - icon.width - parent.spacing*2
-                    text: light ? light.name : ""
-                    anchors.verticalCenter: parent.verticalCenter
-                }
-
-                Switch {
-                    id: onOffSwitch
-                    checked: light && light.on
-                    anchors.verticalCenter: parent.verticalCenter
-                    onClicked: {
-                        light.on = checked;
-                    }
-                }
-            }
-            Row {
-                id: renameRow
-                anchors.fill: parent
-                spacing: units.gu(2)
-                height: units.gu(6)
-                visible: opacity > 0
-                opacity: 0
-
-                TextField {
-                    id: renameTextField
-                    width: parent.width - okButton.width - parent.spacing
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: light ? light.name : ""
-                }
-                Button {
-                    id: okButton
-                    text: "OK"
-                    anchors.verticalCenter: parent.verticalCenter
-                    onClicked: {
-                        light.name = renameTextField.text
-                        delegateItem.state = ""
-                    }
-                }
-            }
+        Label {
+            id: nameLabel
+            width: parent.width - onOffSwitch.width - icon.width - parent.spacing*2
+            text: light ? light.name : ""
+            anchors.verticalCenter: parent.verticalCenter
         }
 
-        Row {
-            anchors { left: parent.left; right: parent.right }
-            spacing: units.gu(1)
-            Icon {
-                height: brightnessSlider.height
-                width: height
-                name: "torch-off"
-            }
-            Slider {
-                id: brightnessSlider
-                width: parent.width - height * 2 - parent.spacing * 2
-                minimumValue: 0
-                maximumValue: 255
-                value: light ? light.bri : 0
-                onValueChanged: {
-                    light.bri = value
-                }
-            }
-            Icon {
-                height: brightnessSlider.height
-                width: height
-                name: "torch-on"
+        Switch {
+            id: onOffSwitch
+            checked: light && light.on
+            anchors.verticalCenter: parent.verticalCenter
+            onClicked: {
+                light.on = !light.on;
+                root.changed();
             }
         }
+    }
 
-
-        UbuntuColorPicker {
-            id: colorPicker
-            anchors { left: parent.left; right: parent.right }
-            height: width / 3
-            color: light ? light.color : "black"
-            active: light ? (light.colormode == LightInterface.ColorModeHS || light.colormode == LightInterface.ColorModeXY) : false
-
-            touchDelegate: UbuntuShape {
-                height: units.gu(3)
-                width: units.gu(3)
-                color: "black"
+    Component {
+        id: renameDialog
+        Dialog {
+            id: rd
+            title: "Rename %1".arg(root.light.isGroup ? "Group" : "Light")
+            text: "Please enter the new name for the %1".arg(root.light.isGroup ? "Group" : "Light")
+            TextField {
+                id: renameTextField
+                width: parent.width - okButton.width - parent.spacing
+                text: light ? light.name : ""
             }
-
-            onColorChanged: {
-                if (pressed) {
-                    light.color = colorPicker.color;
+            Button {
+                id: okButton
+                text: "OK"
+                onClicked: {
+                    root.light.alert = "none"
+                    root.light.name = renameTextField.text
+                    PopupUtils.close(rd)
                 }
-            }
-        }
-
-        UbuntuColorPickerCt {
-            id: colorPickerCt
-            anchors { left: parent.left; right: parent.right }
-            height: width / 6
-            ct: light ? light.ct : minCt
-            active: light && light.colormode == LightInterface.ColorModeCT
-
-            onCtChanged: {
-                if (pressed) {
-                    light.ct = colorPickerCt.ct;
-                }
-            }
-
-            touchDelegate: Rectangle {
-                height: colorPickerCt.height
-                width: units.gu(.5)
-                color: "transparent"
-                border.color: "black"
-                border.width: units.dp(2)
-            }
-        }
-
-        OptionSelector {
-            id: effectSelector
-            model: ListModel {
-                id: effectModel
-                ListElement { name: "No effect"; value: "none" }
-                ListElement { name: "Color loop"; value: "colorloop" }
-            }
-            selectedIndex: findIndex()
-
-            function findIndex() {
-                if (!light) {
-                    return 0;
-                }
-
-                for (var i = 0; i < effectModel.count; i++) {
-                    if (effectModel.get(i).value == light.effect) {
-                        return i;
-                    }
-                }
-                return 0;
-            }
-
-            onSelectedIndexChanged: {
-                light.effect = effectModel.get(selectedIndex).value;
-            }
-
-            delegate: OptionSelectorDelegate {
-                text: name
             }
         }
     }

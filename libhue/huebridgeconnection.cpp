@@ -74,11 +74,6 @@ QString HueBridgeConnection::connectedBridge() const
     return m_apiKey.isEmpty() ? "" : m_bridge.toString();
 }
 
-QString HueBridgeConnection::connectedBridgeString() const
-{
-    return m_bridge.toString();
-}
-
 HueBridgeConnection::BridgeStatus HueBridgeConnection::status() const
 {
     return m_bridgeStatus;
@@ -112,14 +107,33 @@ void HueBridgeConnection::onFoundBridge(QHostAddress bridge)
 
     if (!m_apiKey.isEmpty()) {
         m_baseApiUrl = "http://" + m_bridge.toString() + "/api/" + m_apiKey + "/";
-        emit connectedBridgeChanged();
     }
 
     // Emitting this after we know if we can connect or not to avoid the ui triggering connect dialogs
+    m_bridgeStatus = BridgeStatusConnecting;
+    emit statusChanged();
     emit bridgeFoundChanged();
 
     m_bridgeStatus = BridgeStatusConnecting;
     emit statusChanged();
+    // Tell the bridge to check for firmware updates
+    QVariantMap swupdateMap;
+    swupdateMap.insert("checkforupdate", true);
+    QVariantMap params;
+    params.insert("portalservices", true);
+    params.insert("swupdate", swupdateMap);
+
+#if QT_VERSION >= 0x050000
+    QJsonDocument jsonDoc = QJsonDocument::fromVariant(params);
+    QByteArray data = jsonDoc.toJson();
+#else
+    QJson::Serializer serializer;
+    QByteArray data = serializer.serialize(params);
+#endif
+
+    QNetworkRequest request(m_baseApiUrl + "config");
+    QNetworkReply *reply = m_nam->put(request, data);
+    connect(reply, SIGNAL(finished()), this, SLOT(checkForUpdateFinished()));
 }
 
 void HueBridgeConnection::onNoBridgesFound()
@@ -134,11 +148,10 @@ void HueBridgeConnection::findBridges()
   m_discovery->findBridges();
 }
 
-void HueBridgeConnection::createUser(const QString &devicetype, const QString &username)
+void HueBridgeConnection::createUser(const QString &devicetype)
 {
     QVariantMap params;
     params.insert("devicetype", devicetype);
-    params.insert("username", username);
 
 #if QT_VERSION >= 0x050000
     QJsonDocument jsonDoc = QJsonDocument::fromVariant(params);
@@ -229,14 +242,13 @@ int HueBridgeConnection::post(const QString &path, const QVariantMap &params, QO
 
 #if QT_VERSION >= 0x050000
     QJsonDocument jsonDoc = QJsonDocument::fromVariant(params);
-    QByteArray data = jsonDoc.toJson();
-
-    qDebug() << "posting" << jsonDoc.toJson()<< "\nto" << request.url() << "\n" << data;
+    QByteArray data = jsonDoc.toJson(QJsonDocument::Compact);
 #else
     QJson::Serializer serializer;
     QByteArray data = serializer.serialize(params);
 #endif
 
+    qDebug() << "posting" << jsonDoc.toJson()<< "\nto" << request.url() << "\n" << data;
     QNetworkReply *reply = m_nam->post(request, data);
     connect(reply, SIGNAL(finished()), this, SLOT(slotOpFinished()));
     connect(reply, SIGNAL(error(QNetworkReply::NetworkError)),
@@ -266,7 +278,7 @@ int HueBridgeConnection::put(const QString &path, const QVariantMap &params, QOb
     QJson::Serializer serializer;
     QByteArray data = serializer.serialize(params);
 #endif
-    //qDebug() << "putting" << url << data;
+//    qDebug() << "putting" << url << data;
 
     QNetworkReply *reply = m_nam->put(request, data);
     connect(reply, SIGNAL(finished()), this, SLOT(slotOpFinished()));
@@ -333,14 +345,13 @@ void HueBridgeConnection::createUserFinished()
     emit connectedBridgeChanged();
 }
 
-void HueBridgeConnection::slotOpFinished()
+void HueBridgeConnection::checkForUpdateFinished()
 {
     QNetworkReply *reply = static_cast<QNetworkReply*>(sender());
     reply->deleteLater();
 
     QByteArray response = reply->readAll();
-    int id = m_requestIdMap.take(reply);
-    CallbackObject co = m_requestSenderMap.take(id);
+    qDebug() << "check for update finished" << response;
 
     //qDebug() << "reply for" << co.sender() << co.slot();
     //qDebug() << "response" << response;
@@ -349,9 +360,10 @@ void HueBridgeConnection::slotOpFinished()
 #if QT_VERSION >= 0x050000
     QJsonParseError error;
     QJsonDocument jsonDoc = QJsonDocument::fromJson(response, &error);
+
     if (error.error != QJsonParseError::NoError) {
-        qWarning() << "error parsing get response:" << response;
-        qWarning() << "error parsing get response with error:" << error.errorString();
+        qWarning() << "cannot parse response:" << error.errorString() << response;
+        emit statusChanged();
         return;
     } else {
         rsp = jsonDoc.toVariant();
@@ -362,13 +374,57 @@ void HueBridgeConnection::slotOpFinished()
     rsp = parser.parse(response, &ok);
     if(!ok) {
         qWarning() << "cannot parse response:" << response;
+        emit statusChanged();
         return;
+    }
+#endif
+
+    if (rsp.toList().first().toMap().contains("error")) {
+        if (rsp.toList().first().toMap().value("error").toMap().value("type").toInt() == 1) {
+            qWarning() << "User not authenticated to bridge";
+            m_bridgeStatus = BridgeStatusAuthenticationFailure;
+        } else {
+            qDebug() << "error communicating with bridge:" << jsonDoc.toJson();
+        }
+    } else {
+        m_bridgeStatus = BridgeStatusConnected;
+        emit connectedBridgeChanged();
+    }
+    emit statusChanged();
+}
+
+void HueBridgeConnection::slotOpFinished()
+{
+    QNetworkReply *reply = static_cast<QNetworkReply*>(sender());
+    reply->deleteLater();
+
+    QByteArray response = reply->readAll();
+    int id = m_requestIdMap.take(reply);
+    CallbackObject co = m_requestSenderMap.take(id);
+
+    qDebug() << "reply for" << co.sender() << co.slot();
+//    qDebug() << "response" << response;
+
+    QVariant rsp;
+#if QT_VERSION >= 0x050000
+    QJsonParseError error;
+    QJsonDocument jsonDoc = QJsonDocument::fromJson(response, &error);
+    if (error.error != QJsonParseError::NoError) {
+        qWarning() << "error parsing get response:" << error.errorString() << response;
+    } else {
+        rsp = jsonDoc.toVariant();
+    }
+#else
+    QJson::Parser parser;
+    bool ok;
+    rsp = parser.parse(response, &ok);
+    if(!ok) {
+        qWarning() << "cannot parse response:" << response;
     }
 #endif
 
     if (m_writeOperationList.contains(reply)) {
         m_writeOperationList.removeAll(reply);
-        emit stateChanged();
     }
 
     if (!co.sender().isNull()) {

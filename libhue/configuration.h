@@ -20,32 +20,60 @@
 #ifndef CONFIGURATION_H
 #define CONFIGURATION_H
 
-#include <QObject>
-#include <QVariantMap>
+#include "hueobject.h"
 
-class Configuration: public QObject
+#include <QVariantMap>
+#include <QTimer>
+
+class Configuration: public HueObject
 {
     Q_OBJECT
 
-    Q_PROPERTY(QString name READ name WRITE setName NOTIFY nameChanged)
+    Q_ENUMS(UpdateState)
+    Q_PROPERTY(QString name READ name WRITE setName NOTIFY changed)
+    Q_PROPERTY(bool connectedToPortal READ connectedToPortal NOTIFY changed)
+    Q_PROPERTY(QString swVersion READ swVersion NOTIFY changed)
+    Q_PROPERTY(UpdateState updateState READ updateState NOTIFY changed)
+    Q_PROPERTY(QString swUpdateReleaseNotes READ swUpdateReleaseNotes NOTIFY changed)
 
 public:
+    enum UpdateState {
+        UpdateStateUpToDate = 0,
+        UpdateStateDownloading = 1,
+        UpdateStateReadyToUpdate = 2,
+        UpdateStateUpdating = 3
+    };
+
     Configuration(QObject *parent = 0);
 
     QString name();
     void setName(const QString &name);
 
+    bool connectedToPortal() const;
+    QString swVersion() const;
+    UpdateState updateState() const;
+    QString swUpdateReleaseNotes() const;
+
 public slots:
     void refresh();
 
+    void checkForUpdate();
+    void performUpdate();
+
 signals:
-    void nameChanged();
+    void changed();
 
 private slots:
-    void responseReceived(int id, const QVariantMap &data);
+    void responseReceived(int id, const QVariant &data);
+    void checkForUpdateReply(int id, const QVariant &data);
+    void performUpdateReply(int id, const QVariant &data);
 
 private:
     QString m_name;
+    bool m_connectedToPortal;
+    QString m_swVersion;
+    UpdateState m_updateState;
+    QString m_url;
 };
 
 #endif

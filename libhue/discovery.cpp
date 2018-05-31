@@ -66,7 +66,7 @@ void Discovery::findBridges()
     qDebug() << "Start searching for Hue device -> " << b;
     m_timeout->start(DISCOVERY_TIMEOUT * 1000);
     if (writeDatagram(b.toUtf8(), QHostAddress("239.255.255.250"), 1900) < 0) {
-      qDebug() << "Failed to write datagram";
+        qDebug() << errorString();
         emit error();
     }
 }
@@ -92,15 +92,11 @@ void Discovery::onReadyRead()
 
         readDatagram(datagram.data(), datagram.size(), &sender, &senderPort);
 
-        QString stringDatagram(datagram);
-        qDebug() << "Got SSDP datagram" << stringDatagram;
-
-        if (stringDatagram.contains("IpBridge", Qt::CaseInsensitive)) {
-            if (!m_reportedBridges.contains(sender)) {
-                sender.setAddress(sender.toIPv4Address());
-                m_reportedBridges << sender;
-                emit foundBridge(sender);
-            }
+//        qDebug() << "got datagram" << datagram;
+        if (!m_reportedBridges.contains(sender)) {
+            sender.setAddress(sender.toIPv4Address());
+            m_reportedBridges << sender;
+            emit foundBridge(sender);
         }
     }
 }

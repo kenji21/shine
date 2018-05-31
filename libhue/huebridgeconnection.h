@@ -80,7 +80,7 @@ public:
 
     BridgeStatus status() const;
 
-    Q_INVOKABLE void createUser(const QString &devicetype, const QString &username);
+    Q_INVOKABLE void createUser(const QString &devicetype);
 
     int get(const QString &path, QObject *sender, const QString &slot, bool errorHandling = false);
     int deleteResource(const QString &path, QObject *sender, const QString &slot);
@@ -108,6 +108,7 @@ private slots:
     void onNoBridgesFound();
 
     void createUserFinished();
+    void checkForUpdateFinished();
     void slotOpFinished();
     void onGetFail(QNetworkReply::NetworkError error);
     void onQueryError(QNetworkReply::NetworkError error);

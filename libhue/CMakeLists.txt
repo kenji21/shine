@@ -4,6 +4,8 @@ include_directories(
 
 set(libhue_SRCS
     huebridgeconnection.cpp
+    hueobject.cpp
+    huemodel.cpp
     discovery.cpp
     configuration.cpp
     groups.cpp
@@ -12,6 +14,20 @@ set(libhue_SRCS
     lightsfiltermodel.cpp
     light.cpp
     lightinterface.h
+    scenes.cpp
+    scene.cpp
+    schedules.cpp
+    schedule.cpp
+    scenesfiltermodel.cpp
+    schedulesfiltermodel.cpp
+    sensor.cpp
+    sensors.cpp
+    sensorsfiltermodel.cpp
+    rule.cpp
+    rules.cpp
+    rulesfiltermodel.cpp
+    action.cpp
+    condition.cpp
 )
 
 add_library(hue SHARED ${libhue_SRCS})

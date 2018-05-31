@@ -37,11 +37,8 @@ Light::Light(int id, const QString &name, QObject *parent):
     m_ctDirty(false),
     m_xyDirty(false)
 {
-    m_timeout.setInterval(1000);
-    m_timeout.setSingleShot(true);
+    m_timeout.setInterval(250);
     connect(&m_timeout, &QTimer::timeout, this, &Light::timeout);
-
-    refresh();
 }
 
 int Light::id() const
@@ -218,10 +215,20 @@ void Light::setColorWithXY(const QColor &color)
 
     int bri = color.value();
 
+    qDebug() << "setting color" << color  << "busy:" << m_busyStateChangeId;
     if (m_busyStateChangeId == -1) {
         qDebug() << "setting color" << color << "for light" << QString::number(m_id);
 
-        QVariantMap params;
+        params.insert("hue", hue);
+        params.insert("sat", sat);
+        // FIXME: There is a bug in the API that it doesn't report back the set state of "sat"
+        // Lets just assume it always succeeds
+        m_sat = sat;
+
+//        QVariantList xyList;
+//        xyList << x << y;
+//        params.insert("xy", xyList);
+        Q_UNUSED(x); Q_UNUSED(y);
 
         QVariantList xyList;
         xyList << x << y;
@@ -232,6 +239,7 @@ void Light::setColorWithXY(const QColor &color)
         qDebug() << "Starting timeout and PUT ... " << "for light" << QString::number(m_id);
         m_timeout.start();
         m_busyStateChangeId = HueBridgeConnection::instance()->put("lights/" + QString::number(m_id) + "/state", params, this, "setStateFinished");
+        m_timeout.start();
     } else {
         qDebug() << "PUT already running (going dirty bri and xy)"
             << m_busyStateChangeId << "not setting color" << color
@@ -274,6 +282,7 @@ void Light::setCt(quint16 ct)
         params.insert("ct", ct);
         params.insert("on", true);
         m_busyStateChangeId = HueBridgeConnection::instance()->put("lights/" + QString::number(m_id) + "/state", params, this, "setStateFinished");
+        m_timeout.start();
     } else {
         m_dirtyCt = ct;
         m_ctDirty = true;
@@ -287,9 +296,14 @@ QString Light::alert() const
 
 void Light::setAlert(const QString &alert)
 {
+    qDebug() << "settings alert" << alert << m_alert;
     if (m_alert != alert) {
-        m_alert = alert;
-        emit stateChanged();
+        QVariantMap params;
+        params.insert("alert", alert);
+        if (alert != "none") {
+            params.insert("on", true);
+        }
+        HueBridgeConnection::instance()->put("lights/" + QString::number(m_id) + "/state", params, this, "setStateFinished");
     }
 }
 
@@ -403,6 +417,7 @@ void Light::setStateFinished(int id, const QVariant &response)
             << ") for light" << QString::number(m_id);
     }
 
+    qDebug() << "set state finished" << response;
     foreach (const QVariant &resultVariant, response.toList()) {
         QVariantMap result = resultVariant.toMap();
         if (result.contains("success")) {
@@ -432,69 +447,61 @@ void Light::setStateFinished(int id, const QVariant &response)
             if (successMap.contains("/lights/" + QString::number(m_id) + "/state/effect")) {
                 m_effect = successMap.value("/lights/" + QString::number(m_id) + "/state/effect").toString();
             }
+            if (successMap.contains("/lights/" + QString::number(m_id) + "/state/alert")) {
+                m_alert = successMap.value("/lights/" + QString::number(m_id) + "/state/alert").toString();
+            }
         }
     }
-
-    m_timeout.stop();
-    m_busyStateChangeId = -1;
-    manageDirtyValues();
-
     emit stateChanged();
+    emit writeOperationFinished();
+
+    if (m_busyStateChangeId == id) {
+        m_busyStateChangeId = -1;
+        m_timeout.stop();
+        if (m_hueDirty || m_satDirty || m_briDirty) {
+            QVariantMap params;
+            if (m_hueDirty) {
+                params.insert("hue", m_dirtyHue);
+                m_hueDirty = false;
+            }
+            if (m_satDirty) {
+                params.insert("sat", m_dirtySat);
+                m_satDirty = false;
+            }
+            if (m_briDirty) {
+                params.insert("bri", m_dirtyBri);
+                m_briDirty = false;
+            }
+
+            // FIXME: There is a bug in the API that it doesn't report back the set state of "sat"
+            // Lets just assume it always succeeds
+            m_sat = m_dirtySat;
+
+            m_busyStateChangeId = HueBridgeConnection::instance()->put("lights/" + QString::number(m_id) + "/state", params, this, "setStateFinished");
+            m_timeout.start();
+        } else if(m_ctDirty) {
+            QVariantMap params;
+            params.insert("ct", m_dirtyCt);
+            m_ctDirty = false;
+
+            m_busyStateChangeId = HueBridgeConnection::instance()->put("lights/" + QString::number(m_id) + "/state", params, this, "setStateFinished");
+            m_timeout.start();
+        } else if (m_xyDirty) {
+            QVariantMap params;
+            QVariantList xyList;
+            xyList << m_dirtyXy.x() << m_dirtyXy.y();
+            params.insert("xy", xyList);
+            m_xyDirty = false;
+
+            m_busyStateChangeId = HueBridgeConnection::instance()->put("lights/" + QString::number(m_id) + "/state", params, this, "setStateFinished");
+            m_timeout.start();
+        }
+    }
 }
-
- void Light::manageDirtyValues()
- {
-     if (m_hueDirty || m_satDirty) {
-         QVariantMap params;
-         if (m_hueDirty) {
-             params.insert("hue", m_dirtyHue);
-             m_hueDirty = false;
-         }
-         if (m_satDirty) {
-             params.insert("sat", m_dirtySat);
-             m_satDirty = false;
-         }
-         if (m_briDirty) {
-             params.insert("bri", m_dirtyBri);
-             m_briDirty = false;
-         }
-
-         // FIXME: There is a bug in the API that it doesn't report back the set state of "sat"
-         // Lets just assume it always succeeds
-         m_sat = m_dirtySat;
-
-         qDebug() << "Starting timeout and PUT because m_hueDirty || m_satDirty... " << "for light" << QString::number(m_id);
-         m_timeout.start();
-         m_busyStateChangeId = HueBridgeConnection::instance()->put("lights/" + QString::number(m_id) + "/state", params, this, "setStateFinished");
-     } else if(m_ctDirty) {
-         QVariantMap params;
-         params.insert("ct", m_dirtyCt);
-         m_ctDirty = false;
-
-         qDebug() << "Starting timeout and PUT because m_ctDirty ... " << "for light" << QString::number(m_id);
-         m_timeout.start();
-         m_busyStateChangeId = HueBridgeConnection::instance()->put("lights/" + QString::number(m_id) + "/state", params, this, "setStateFinished");
-     } else if (m_xyDirty || m_briDirty) {
-         QVariantMap params;
-         QVariantList xyList;
-         xyList << m_dirtyXy.x() << m_dirtyXy.y();
-         params.insert("xy", xyList);
-         m_xyDirty = false;
-         params.insert("bri", m_dirtyBri);
-         m_briDirty = false;
-
-         qDebug() << "Starting timeout and PUT because m_xyDirty || m_briDirty ... " << "for light" << QString::number(m_id);
-         m_timeout.start();
-         m_busyStateChangeId = HueBridgeConnection::instance()->put("lights/" + QString::number(m_id) + "/state", params, this, "setStateFinished");
-     }
- }
 
 void Light::timeout()
 {
-    qDebug() << ">>>>>>timeout to send data, resetting bridge connection" << "for light" << QString::number(m_id);
-    HueBridgeConnection::instance()->resetBridgeConnection();
-
-    m_timeout.stop();
-    m_busyStateChangeId = -1;
-    manageDirtyValues();
+    if (m_busyStateChangeId != -1) {
+        setStateFinished(m_busyStateChangeId, QVariant());
+    }
 }

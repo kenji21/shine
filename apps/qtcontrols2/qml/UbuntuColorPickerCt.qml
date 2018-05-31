@@ -17,10 +17,38 @@
  *      Michael Zanetti <michael_zanetti@gmx.net>
  */
 
-import QtQuick 2.0
-import Ubuntu.Components 0.1
-import Ubuntu.Components.ListItems 0.1
+import QtQuick 2.3
+import Ubuntu.Components 1.3
 import Hue 0.1
 
-Page {
+Item {
+
+    property alias ct: colorPickerCt.ct
+    property alias minCt: colorPickerCt.minCt
+    property alias maxCt: colorPickerCt.maxCt
+    property alias touchDelegate: colorPickerCt.touchDelegate
+    property alias pressed: colorPickerCt.pressed
+    property alias active: colorPickerCt.active
+
+    ShaderEffectSource {
+        id: source
+        anchors.centerIn: parent
+        width: 1
+        height: 1
+        hideSource: true
+        sourceItem: colorPickerCt
+    }
+
+    Shape {
+        id: shape
+        source: source
+
+        anchors.fill: parent
+    }
+
+    ColorPickerCt {
+        id: colorPickerCt
+        anchors.fill: parent
+    }
+
 }

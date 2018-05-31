@@ -22,14 +22,14 @@
 #ifndef LIGHTINTERFACE_H
 #define LIGHTINTERFACE_H
 
+#include "hueobject.h"
 #include "huebridgeconnection.h"
 
-#include <QObject>
 #include <QPointF>
 #include <QColor>
 #include <QTimer>
 
-class LightInterface: public QObject
+class LightInterface: public HueObject
 {
     Q_OBJECT
     Q_ENUMS(ColorMode)
@@ -44,10 +44,12 @@ class LightInterface: public QObject
     Q_PROPERTY(QColor color READ color WRITE setColor NOTIFY stateChanged)
     Q_PROPERTY(QPointF xy READ xy NOTIFY stateChanged)
     Q_PROPERTY(quint16 ct READ ct WRITE setCt NOTIFY stateChanged)
-    Q_PROPERTY(QString alert READ alert NOTIFY stateChanged)
+    Q_PROPERTY(QString alert READ alert WRITE setAlert NOTIFY stateChanged)
     Q_PROPERTY(QString effect READ effect WRITE setEffect NOTIFY stateChanged)
     Q_PROPERTY(ColorMode colormode READ colorMode NOTIFY stateChanged)
     Q_PROPERTY(bool reachable READ reachable NOTIFY stateChanged)
+
+    Q_PROPERTY(bool isGroup READ isGroup CONSTANT)
 
 public:
     enum ColorMode {
@@ -57,11 +59,8 @@ public:
     };
 
     LightInterface(QObject *parent)
-        : QObject(parent)
+        : HueObject(parent)
     {
-        connect(&m_timer, SIGNAL(timeout()), this, SLOT(refresh()));
-        m_timer.start(10000);
-        connect(HueBridgeConnection::instance(), SIGNAL(stateChanged()), this, SLOT(refresh()));
     }
 
     virtual int id() const = 0;
@@ -81,8 +80,9 @@ public:
     virtual ColorMode colorMode() const = 0;
     virtual bool reachable() const = 0;
 
+    virtual bool isGroup() const { return false; }
+
 public slots:
-    virtual void refresh() = 0;
     virtual void setOn(bool on) = 0;
     virtual void setBri(quint8 bri) = 0;
     virtual void setHue(quint16 hue) = 0;
@@ -96,9 +96,7 @@ public slots:
 signals:
     void nameChanged();
     void stateChanged();
-
-private:
-    QTimer m_timer;
+    void writeOperationFinished();
 };
 
 #endif

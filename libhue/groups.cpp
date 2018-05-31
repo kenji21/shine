@@ -25,11 +25,9 @@
 #include <QDebug>
 
 Groups::Groups(QObject *parent)
-    : QAbstractListModel(parent)
+    : HueModel(parent),
+      m_busy(false)
 {
-    connect(HueBridgeConnection::instance(), SIGNAL(connectedBridgeChanged()), this, SLOT(refresh()));
-    refresh();
-
 #if QT_VERSION < 0x050000
     setRoleNames(roleNames());
 #endif
@@ -38,11 +36,6 @@ Groups::Groups(QObject *parent)
 int Groups::rowCount(const QModelIndex &parent) const
 {
     Q_UNUSED(parent)
-    return m_list.count();
-}
-
-int Groups::count() const
-{
     return m_list.count();
 }
 
@@ -102,25 +95,79 @@ Group *Groups::get(int index) const
     return 0;
 }
 
+Group *Groups::findGroup(int id) const
+{
+    foreach (Group *group, m_list) {
+        if (group->id() == id) {
+            return group;
+        }
+    }
+    return 0;
+}
+
+bool Groups::busy() const
+{
+    return m_busy;
+}
+
 void Groups::refresh()
 {
-    HueBridgeConnection::instance()->get("groups", this, "groupsReceived");
+    HueBridgeConnection::instance()->get("lights", this, "lightsReceived");
+    m_busy = true;
+    emit busyChanged();
 }
 
 void Groups::groupsReceived(int id, const QVariant &variant)
 {
-    Q_UNUSED(id)
-    QVariantMap groups = variant.toMap();
+//    qDebug() << "groups receied" << variant;
 
-    beginResetModel();
-    Group *group = createGroupInternal(0, "All");
-    connect(group, SIGNAL(lightsChanged()), this, SLOT(groupLightsChanged()));
-    foreach (const QString &groupId, groups.keys()) {
-        Group *group = createGroupInternal(groupId.toInt(), groups.value(groupId).toMap().value("name").toString());
-        connect(group, SIGNAL(lightsChanged()), this, SLOT(groupLightsChanged()));
+    Q_UNUSED(id)
+
+    // Group 0 is not included in the get all groups call !!??
+    Group* group0 = findGroup(0);
+    if (!group0) {
+         group0 = createGroupInternal(0, "All");
     }
-    endResetModel();
-    emit countChanged();
+    group0->refresh();
+
+
+    QVariantMap groups = variant.toMap();
+    QList<Group*> removedGroups;
+    foreach (Group *group, m_list) {
+        if (group->id() != 0 && !groups.contains(QString::number(group->id()))) {
+            removedGroups.append(group);
+        }
+    }
+
+    foreach (Group *group, removedGroups) {
+        int index = m_list.indexOf(group);
+        beginRemoveRows(QModelIndex(), index, index);
+        m_list.takeAt(index)->deleteLater();
+        endRemoveRows();
+    }
+
+    foreach (const QString &groupId, groups.keys()) {
+        Group* group = findGroup(groupId.toInt());
+        if (!group) {
+            group = createGroupInternal(groupId.toInt(), groups.value(groupId).toMap().value("name").toString());
+        }
+        parseStateMap(group, groups.value(groupId).toMap().value("action").toMap());
+        group->m_on = false;
+        QList<int> lightIds;
+        foreach (const QVariant &lightId, groups.value(groupId).toMap().value("lights").toList()) {
+            lightIds.append(lightId.toInt());
+            if (m_lights.value(lightId.toInt())) {
+                group->m_on = true;
+            }
+        }
+        if (group->m_lightIds != lightIds) {
+            group->m_lightIds = lightIds;
+            emit group->lightsChanged();
+        }
+        emit group->stateChanged();
+    }
+    m_busy = false;
+    emit busyChanged();
 }
 
 void Groups::groupDescriptionChanged()
@@ -195,12 +242,15 @@ void Groups::createGroup(const QString &name, const QList<int> &lights)
 
 Group *Groups::createGroupInternal(int id, const QString &name)
 {
-    Group *group = new Group(id, name);
+    Group *group = new Group(id, name, this);
 
     connect(group, SIGNAL(nameChanged()), this, SLOT(groupDescriptionChanged()));
     connect(group, SIGNAL(stateChanged()), this, SLOT(groupStateChanged()));
+    connect(group, SIGNAL(lightsChanged()), this, SLOT(groupLightsChanged()));
 
+    beginInsertRows(QModelIndex(), m_list.count(), m_list.count());
     m_list.append(group);
+    endInsertRows();
     return group;
 }
 
@@ -246,4 +296,39 @@ void Groups::deleteGroupFinished(int id, const QVariant &response)
             refresh();
         }
     }
+}
+
+void Groups::lightsReceived(int id, const QVariant &variant)
+{
+    Q_UNUSED(id)
+//    qDebug() << "lights received" << variant;
+
+    m_lights.clear();
+    foreach (const QString &lightId, variant.toMap().keys()) {
+        m_lights.insert(lightId.toInt(), variant.toMap().value(lightId).toMap().value("state").toMap().value("on").toBool());
+    }
+
+    HueBridgeConnection::instance()->get("groups", this, "groupsReceived");
+}
+
+void Groups::parseStateMap(Group *group, const QVariantMap &stateMap)
+{
+    group->m_on = stateMap.value("on").toBool();
+    group->m_bri = stateMap.value("bri").toInt();
+    group->m_hue = stateMap.value("hue").toInt();
+    group->m_sat = stateMap.value("sat").toInt();
+    group->m_xy = stateMap.value("xy").toPointF();
+    group->m_ct = stateMap.value("ct").toInt();
+    group->m_alert = stateMap.value("alert").toString();
+    group->m_effect = stateMap.value("effect").toString();
+    QString colorModeString = stateMap.value("colormode").toString();
+    if (colorModeString == "hs") {
+        group->m_colormode = Group::ColorModeHS;
+    } else if (colorModeString == "xy") {
+        group->m_colormode = Group::ColorModeXY;
+    } else if (colorModeString == "ct") {
+        group->m_colormode = Group::ColorModeCT;
+    }
+    group->m_reachable = true;//stateMap.value("reachable").toBool();
+
 }

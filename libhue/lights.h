@@ -20,12 +20,13 @@
 #ifndef LIGHTS_H
 #define LIGHTS_H
 
-#include <QAbstractListModel>
+#include "huemodel.h"
+
 #include <QTimer>
 
 class Light;
 
-class Lights : public QAbstractListModel
+class Lights : public HueModel
 {
     Q_OBJECT
 public:
@@ -49,10 +50,15 @@ public:
 
     explicit Lights(QObject *parent = 0);
 
-    int rowCount(const QModelIndex &parent) const;
+    int rowCount(const QModelIndex &parent = QModelIndex()) const;
     QVariant data(const QModelIndex &index, int role) const;
     QHash<int, QByteArray> roleNames() const;
     Q_INVOKABLE Light* get(int index) const;
+    Q_INVOKABLE Light* findLight(int lightId) const;
+
+    Q_INVOKABLE void searchForNewLights();
+
+    bool busy() const;
 
 public slots:
     void refresh();
@@ -61,13 +67,18 @@ private slots:
     void lightsReceived(int id, const QVariant &variant);
     void lightDescriptionChanged();
     void lightStateChanged();
+    void searchStarted(int id, const QVariant &response);
+
+signals:
+    void countChanged();
 
 private:
     Light* createLight(int id, const QString &name);
+    void parseStateMap(Light *light, const QVariantMap &stateMap);
 
 private:
     QList<Light*> m_list;
-    QTimer m_timer;
+    bool m_busy;
 };
 
 #endif // LIGHTS_H
