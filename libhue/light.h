@@ -71,8 +71,8 @@ public slots:
     void setBri(quint8 bri);
     void setHue(quint16 hue);
     void setSat(quint8 sat);
-    void setColor(const QColor &color);
     void setColorWithXY(const QColor &color);
+    void setColor(const QColor &color);
     void setXy(const QPointF &xy);
     void setCt(quint16 ct);
     void setAlert(const QString &alert);
@@ -91,7 +91,6 @@ private slots:
     void timeout();
 
 private:
-    void manageDirtyValues();
     void setReachable(bool reachable);
 
     int m_id;
@@ -111,7 +110,6 @@ private:
     QString m_effect;
     ColorMode m_colormode;
     bool m_reachable;
-    bool m_refreshed;
 
     int m_busyStateChangeId;
     bool m_hueDirty;

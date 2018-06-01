@@ -23,27 +23,22 @@
 #include <QTimer>
 
 // Discovery timeout in seconds
-const unsigned int DISCOVERY_TIMEOUT = 1;
+const unsigned int DISCOVERY_TIMEOUT = 3;
 
 Discovery::Discovery(QObject *parent) :
     QUdpSocket(parent),
     m_timeout(new QTimer(this))
 {
-    quint16 port = 0;
+    quint16 port = 1900;
     unsigned int tries = 0;
     const unsigned int maxtries = 10;
 
-    qDebug() << "Will bind on port " << port;
     while (!bind(port++)) {
-      qDebug() << "Failed to bind, next try on port " << port;
         if (++tries == maxtries) {
             QMetaObject::invokeMethod(this, "error", Qt::QueuedConnection);
             return;
         }
     }
-    qDebug() << "Local port :" << localPort();
-    qDebug() << "Peer port :" << peerPort();
-
 
     connect(this, SIGNAL(readyRead()), this, SLOT(onReadyRead()));
 
@@ -60,10 +55,10 @@ void Discovery::findBridges()
               "HOST: 239.255.255.250:1900\r\n"
               "MAN: \"ssdp:discover\"\r\n"
               "MX: %1\r\n"
-              "ST: libhue:idl\r\n\r\n");
+              "ST: libhue:idl\r\n");
     b.arg(DISCOVERY_TIMEOUT);
 
-    qDebug() << "Start searching for Hue device -> " << b;
+   qDebug() << "writing datagram" << b;
     m_timeout->start(DISCOVERY_TIMEOUT * 1000);
     if (writeDatagram(b.toUtf8(), QHostAddress("239.255.255.250"), 1900) < 0) {
         qDebug() << errorString();
@@ -74,8 +69,6 @@ void Discovery::findBridges()
 void Discovery::onTimeout()
 {
     if (m_reportedBridges.isEmpty()) {
-        qDebug() << Q_FUNC_INFO << "Any Hue bridge found, try again ...";
-
         emit noBridgesFound();
         // Try again...
         // findBridges();
@@ -92,11 +85,20 @@ void Discovery::onReadyRead()
 
         readDatagram(datagram.data(), datagram.size(), &sender, &senderPort);
 
-//        qDebug() << "got datagram" << datagram;
-        if (!m_reportedBridges.contains(sender)) {
-            sender.setAddress(sender.toIPv4Address());
-            m_reportedBridges << sender;
-            emit foundBridge(sender);
+        QString stringDatagram(datagram);
+        // qDebug() << "got datagram" << stringDatagram;
+    
+        if (stringDatagram.contains("hue-bridgeid", Qt::CaseInsensitive)) {
+            if (!m_reportedBridges.contains(sender)) {
+                QRegExp rx("hue-bridgeid: ([0-9A-Za-z]+)\r\n");
+                rx.indexIn(stringDatagram);
+                QString bridgeid = rx.cap(1);
+                qDebug() << "got bridgeid: " << bridgeid;
+
+                m_reportedBridges << sender;
+                sender.setAddress(sender.toIPv4Address());
+                emit foundBridge(sender, bridgeid);
+            }
         }
     }
 }

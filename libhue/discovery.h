@@ -35,7 +35,7 @@ public:
 
 signals:
     void error();
-    void foundBridge(QHostAddress bridge);
+    void foundBridge(QHostAddress bridge, QString bridgeid);
     void noBridgesFound();
 
 private slots:

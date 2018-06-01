@@ -27,8 +27,6 @@
 #include <QHostAddress>
 #include <QVariantMap>
 #include <QPointer>
-#include <QNetworkReply>
-
 #include "discovery.h"
 
 class QNetworkAccessManager;
@@ -69,26 +67,26 @@ public:
     };
 
     static HueBridgeConnection* instance();
+    Discovery *m_discovery;
 
     QString apiKey() const;
     void setApiKey(const QString &apiKey);
 
+    QString bridgeId() const;
+
     bool discoveryError() const;
     bool bridgeFound() const;
     QString connectedBridge() const;
-    QString connectedBridgeString() const;
 
     BridgeStatus status() const;
+    void findBridges();
 
     Q_INVOKABLE void createUser(const QString &devicetype);
 
-    int get(const QString &path, QObject *sender, const QString &slot, bool errorHandling = false);
+    int get(const QString &path, QObject *sender, const QString &slot);
     int deleteResource(const QString &path, QObject *sender, const QString &slot);
     int post(const QString &path, const QVariantMap &params, QObject *sender, const QString &slot);
     int put(const QString &path, const QVariantMap &params, QObject *sender, const QString &slot);
-
-    void resetBridgeConnection();
-    void findBridges();
 
 signals:
     void apiKeyChanged();
@@ -96,31 +94,27 @@ signals:
     void bridgeFoundChanged();
     void noBridgesFound();
     void connectedBridgeChanged();
-    void stateChanged();
     void statusChanged();
-    void getFailed(QNetworkReply::NetworkError error);
 
     void createUserFailed(const QString &errorMessage);
 
 private slots:
     void onDiscoveryError();
-    void onFoundBridge(QHostAddress bridge);
+    void onFoundBridge(QHostAddress bridge, QString bridgeid);
     void onNoBridgesFound();
 
     void createUserFinished();
     void checkForUpdateFinished();
     void slotOpFinished();
-    void onGetFail(QNetworkReply::NetworkError error);
-    void onQueryError(QNetworkReply::NetworkError error);
 
 private:
     HueBridgeConnection();
     static HueBridgeConnection *s_instance;
-    Discovery *m_discovery;
 
     QNetworkAccessManager *m_nam;
 
     QHostAddress m_bridge;
+    QString m_bridgeid;
     bool m_discoveryError;
     QString m_apiKey;
     QString m_baseApiUrl;

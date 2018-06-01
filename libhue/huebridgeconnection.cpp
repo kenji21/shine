@@ -48,14 +48,17 @@ QString HueBridgeConnection::apiKey() const
     return m_apiKey;
 }
 
+QString HueBridgeConnection::bridgeId() const
+{
+    return m_bridgeid;
+}
+
 void HueBridgeConnection::setApiKey(const QString &apiKey)
 {
     if (m_apiKey != apiKey) {
         m_apiKey = apiKey;
-        emit apiKeyChanged();
-    }
-    if (!m_bridge.isNull()) {
         m_baseApiUrl = "http://" + m_bridge.toString() + "/api/" + m_apiKey + "/";
+        emit apiKeyChanged();
     }
 }
 
@@ -87,7 +90,7 @@ HueBridgeConnection::HueBridgeConnection():
 {
     m_discovery = new Discovery(this);
     connect(m_discovery, SIGNAL(error()), this, SLOT(onDiscoveryError()));
-    connect(m_discovery, SIGNAL(foundBridge(QHostAddress)), this, SLOT(onFoundBridge(QHostAddress)));
+    connect(m_discovery, SIGNAL(foundBridge(QHostAddress, QString)), this, SLOT(onFoundBridge(QHostAddress, QString)));
     connect(m_discovery, SIGNAL(noBridgesFound()), this, SLOT(onNoBridgesFound()));
     m_discovery->findBridges();
 }
@@ -99,11 +102,14 @@ void HueBridgeConnection::onDiscoveryError()
     emit discoveryErrorChanged();
 }
 
-void HueBridgeConnection::onFoundBridge(QHostAddress bridge)
+void HueBridgeConnection::onFoundBridge(QHostAddress bridge, QString bridgeid)
 {
     //FIXME: eventually handle multiple bridges
     disconnect(sender());
     m_bridge = bridge;
+    m_bridgeid = bridgeid;
+
+    qDebug() << Q_FUNC_INFO << "Found bridge : " << m_bridge.toString() << " with id: " << bridgeid;
 
     if (!m_apiKey.isEmpty()) {
         m_baseApiUrl = "http://" + m_bridge.toString() + "/api/" + m_apiKey + "/";
@@ -114,8 +120,7 @@ void HueBridgeConnection::onFoundBridge(QHostAddress bridge)
     emit statusChanged();
     emit bridgeFoundChanged();
 
-    m_bridgeStatus = BridgeStatusConnecting;
-    emit statusChanged();
+/*
     // Tell the bridge to check for firmware updates
     QVariantMap swupdateMap;
     swupdateMap.insert("checkforupdate", true);
@@ -131,9 +136,11 @@ void HueBridgeConnection::onFoundBridge(QHostAddress bridge)
     QByteArray data = serializer.serialize(params);
 #endif
 
+    qDebug() << Q_FUNC_INFO << "calling : m_baseApiUrl + config" << m_baseApiUrl + "config";
     QNetworkRequest request(m_baseApiUrl + "config");
     QNetworkReply *reply = m_nam->put(request, data);
     connect(reply, SIGNAL(finished()), this, SLOT(checkForUpdateFinished()));
+    */
 }
 
 void HueBridgeConnection::onNoBridgesFound()
@@ -145,7 +152,7 @@ void HueBridgeConnection::onNoBridgesFound()
 
 void HueBridgeConnection::findBridges()
 {
-  m_discovery->findBridges();
+    m_discovery->findBridges();
 }
 
 void HueBridgeConnection::createUser(const QString &devicetype)
@@ -161,21 +168,15 @@ void HueBridgeConnection::createUser(const QString &devicetype)
     QByteArray data = serializer.serialize(params);
 #endif
 
+    qDebug() << "sending createUser to" << m_bridge.toString();
     QNetworkRequest request;
-    QString urlString = QString("http://" + m_bridge.toString() + "/api");
-    QUrl url = QUrl(urlString);
-
-    request.setUrl(url);
-    qDebug() << "sending createUser to" << m_bridge.toString() << " data = " << data << " on urlStr = " << urlString << " url = " << url.toString();
-
-    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    request.setUrl(QUrl("http://" + m_bridge.toString() + "/api"));
+    request.setRawHeader(QByteArray("Content-Type"), QByteArray("application/json"));
     QNetworkReply *reply = m_nam->post(request, data);
     connect(reply, SIGNAL(finished()), this, SLOT(createUserFinished()));
-    connect(reply, SIGNAL(error(QNetworkReply::NetworkError)),
-        this, SLOT(onQueryError(QNetworkReply::NetworkError)));
 }
 
-int HueBridgeConnection::get(const QString &path, QObject *sender, const QString &slot, bool errorHandling)
+int HueBridgeConnection::get(const QString &path, QObject *sender, const QString &slot)
 {
     if (m_baseApiUrl.isEmpty()) {
         qWarning() << "Not authenticated to bridge, cannot get" << path;
@@ -186,26 +187,10 @@ int HueBridgeConnection::get(const QString &path, QObject *sender, const QString
     request.setUrl(url);
     QNetworkReply *reply = m_nam->get(request);
     connect(reply, SIGNAL(finished()), this, SLOT(slotOpFinished()));
-    connect(reply, SIGNAL(error(QNetworkReply::NetworkError)),
-        this, SLOT(onQueryError(QNetworkReply::NetworkError)));
-    if (errorHandling) {
-      connect(reply, SIGNAL(error(QNetworkReply::NetworkError)), this, SLOT(onGetFail(QNetworkReply::NetworkError)));
-    }
     m_requestIdMap.insert(reply, m_requestCounter);
     CallbackObject co(sender, slot);
     m_requestSenderMap.insert(m_requestCounter, co);
     return m_requestCounter++;
-}
-
-void HueBridgeConnection::onQueryError(QNetworkReply::NetworkError error)
-{
-    qDebug() << "HueBridgeConnection : Query Failed with status" << error;
-    //resetBridgeConnection();
-}
-
-void HueBridgeConnection::onGetFail(QNetworkReply::NetworkError error)
-{
-    emit getFailed(error);
 }
 
 int HueBridgeConnection::deleteResource(const QString &path, QObject *sender, const QString &slot)
@@ -219,8 +204,6 @@ int HueBridgeConnection::deleteResource(const QString &path, QObject *sender, co
     request.setUrl(url);
     QNetworkReply *reply = m_nam->deleteResource(request);
     connect(reply, SIGNAL(finished()), this, SLOT(slotOpFinished()));
-    connect(reply, SIGNAL(error(QNetworkReply::NetworkError)),
-        this, SLOT(onQueryError(QNetworkReply::NetworkError)));
     m_requestIdMap.insert(reply, m_requestCounter);
     m_writeOperationList.append(reply);
     CallbackObject co(sender, slot);
@@ -251,8 +234,6 @@ int HueBridgeConnection::post(const QString &path, const QVariantMap &params, QO
     qDebug() << "posting" << jsonDoc.toJson()<< "\nto" << request.url() << "\n" << data;
     QNetworkReply *reply = m_nam->post(request, data);
     connect(reply, SIGNAL(finished()), this, SLOT(slotOpFinished()));
-    connect(reply, SIGNAL(error(QNetworkReply::NetworkError)),
-        this, SLOT(onQueryError(QNetworkReply::NetworkError)));
     m_requestIdMap.insert(reply, m_requestCounter);
     m_writeOperationList.append(reply);
     CallbackObject co(sender, slot);
@@ -282,18 +263,11 @@ int HueBridgeConnection::put(const QString &path, const QVariantMap &params, QOb
 
     QNetworkReply *reply = m_nam->put(request, data);
     connect(reply, SIGNAL(finished()), this, SLOT(slotOpFinished()));
-    connect(reply, SIGNAL(error(QNetworkReply::NetworkError)),
-        this, SLOT(onQueryError(QNetworkReply::NetworkError)));
     m_requestIdMap.insert(reply, m_requestCounter);
     m_writeOperationList.append(reply);
     CallbackObject co(sender, slot);
     m_requestSenderMap.insert(m_requestCounter, co);
     return m_requestCounter++;
-}
-
-void HueBridgeConnection::resetBridgeConnection()
-{
-  m_nam = new QNetworkAccessManager(this);
 }
 
 void HueBridgeConnection::createUserFinished()
@@ -309,7 +283,7 @@ void HueBridgeConnection::createUserFinished()
     QJsonDocument jsonDoc = QJsonDocument::fromJson(response, &error);
 
     if (error.error != QJsonParseError::NoError) {
-        qWarning() << "cannot parse response:" << error.errorString() << response;
+        qWarning() << "createUserFinished: cannot parse response:" << error.errorString() << response;
         return;
     }
     QVariant rsp = jsonDoc.toVariant();
@@ -318,7 +292,7 @@ void HueBridgeConnection::createUserFinished()
     bool ok;
     QVariant rsp = parser.parse(response, &ok);
     if(!ok) {
-        qWarning() << "cannot parse response:" << response;
+        qWarning() << "createUserFinished: cannot parse response:" << response;
         return;
     }
 #endif
@@ -340,8 +314,6 @@ void HueBridgeConnection::createUserFinished()
     emit apiKeyChanged();
 
     m_baseApiUrl = "http://" + m_bridge.toString() + "/api/" + m_apiKey + "/";
-    m_bridgeStatus = BridgeStatusConnected;
-    emit statusChanged();
     emit connectedBridgeChanged();
 }
 
@@ -353,27 +325,22 @@ void HueBridgeConnection::checkForUpdateFinished()
     QByteArray response = reply->readAll();
     qDebug() << "check for update finished" << response;
 
-    //qDebug() << "reply for" << co.sender() << co.slot();
-    //qDebug() << "response" << response;
-
-    QVariant rsp;
 #if QT_VERSION >= 0x050000
     QJsonParseError error;
     QJsonDocument jsonDoc = QJsonDocument::fromJson(response, &error);
 
     if (error.error != QJsonParseError::NoError) {
-        qWarning() << "cannot parse response:" << error.errorString() << response;
+        qWarning() << "checkForUpdateFinished: cannot parse response:" << error.errorString() << response;
         emit statusChanged();
         return;
-    } else {
-        rsp = jsonDoc.toVariant();
     }
+    QVariant rsp = jsonDoc.toVariant();
 #else
     QJson::Parser parser;
     bool ok;
-    rsp = parser.parse(response, &ok);
+    QVariant rsp = parser.parse(response, &ok);
     if(!ok) {
-        qWarning() << "cannot parse response:" << response;
+        qWarning() << "checkForUpdateFinished: cannot parse response:" << response;
         emit statusChanged();
         return;
     }
@@ -419,7 +386,7 @@ void HueBridgeConnection::slotOpFinished()
     bool ok;
     rsp = parser.parse(response, &ok);
     if(!ok) {
-        qWarning() << "cannot parse response:" << response;
+        qWarning() << "slotOpFinished: cannot parse response:" << response;
     }
 #endif
 
@@ -431,3 +398,4 @@ void HueBridgeConnection::slotOpFinished()
         QMetaObject::invokeMethod(co.sender(), co.slot().toLatin1().data(), Q_ARG(int, id), Q_ARG(QVariant, rsp));
     }
 }
+
