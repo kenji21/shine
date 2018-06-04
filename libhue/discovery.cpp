@@ -29,7 +29,7 @@ Discovery::Discovery(QObject *parent) :
     QUdpSocket(parent),
     m_timeout(new QTimer(this))
 {
-    quint16 port = 1900;
+    quint16 port = 0;
     unsigned int tries = 0;
     const unsigned int maxtries = 10;
 
